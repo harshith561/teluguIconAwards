@@ -18,6 +18,12 @@ export default function AdminLogin() {
       const data = await api.post('/auth/login', { email, password });
       if (data && data.token) {
         localStorage.setItem('admin_token', data.token);
+        if (data.audit_id) {
+          localStorage.setItem('admin_audit_id', String(data.audit_id));
+        }
+        if (data.user) {
+          localStorage.setItem('admin_user', JSON.stringify(data.user));
+        }
         navigate('/admin');
       } else {
         setError(data.message || 'Invalid email or password');

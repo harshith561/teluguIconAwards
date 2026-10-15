@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
@@ -91,6 +91,20 @@ const MILESTONES = [
   { target: '2026-11-16T10:00:00+05:30', label: 'THE ICONS ARE REVEALED IN', name: 'EVENT DAY · 16 NOVEMBER 2026' }
 ];
 
+const DEFAULT_TICKETS = [
+  { id: 1, session: 1, tier: 'vvip', price_paisa: 50000, price_display: '₹500', availability: 'available', is_active: 1 },
+  { id: 2, session: 1, tier: 'mip', price_paisa: 100000, price_display: '₹1,000', availability: 'available', is_active: 1 },
+  { id: 3, session: 2, tier: 'vvip', price_paisa: 50000, price_display: '₹500', availability: 'available', is_active: 1 },
+  { id: 4, session: 2, tier: 'mip', price_paisa: 100000, price_display: '₹1,000', availability: 'available', is_active: 1 }
+];
+
+const TICKET_AVAIL_CONFIG = {
+  available:       { label: 'AVAILABLE',       cls: 'text-[#8fe0a5] border-[#8fe0a5]/40 bg-[#8fe0a5]/10', isSoldOut: false },
+  filling_fast:    { label: 'FILLING FAST',    cls: 'text-[#f1d99a] border-[#f1d99a]/40 bg-[#f1d99a]/10', isSoldOut: false },
+  almost_sold_out: { label: 'ALMOST SOLD OUT', cls: 'text-[#f59e0b] border-[#f59e0b]/40 bg-[#f59e0b]/10', isSoldOut: false },
+  sold_out:        { label: 'SOLD OUT',         cls: 'text-[#ef4444] border-[#ef4444]/40 bg-[#ef4444]/10', isSoldOut: true },
+};
+
 function pad(n) {
   return String(Math.max(0, n)).padStart(2, '0');
 }
@@ -101,6 +115,88 @@ export default function HomePage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const [tickets, setTickets] = useState(DEFAULT_TICKETS);
+  const [hasLoadedTickets, setHasLoadedTickets] = useState(false);
+  const fetchedTicketsRef = useRef(false);
+
+  // Calls the ticket availability API once on load based on dependency
+  useEffect(() => {
+    if (hasLoadedTickets || fetchedTicketsRef.current) return;
+    fetchedTicketsRef.current = true;
+
+    api.get('/tickets/availability')
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setTickets(data);
+          setHasLoadedTickets(true);
+        }
+      })
+      .catch(() => {});
+  }, [hasLoadedTickets]);
+
+  const getTicketInfo = (session, tier) => {
+    const match = tickets.find(
+      (t) => t.session === session && t.tier.toLowerCase() === tier.toLowerCase() && t.is_active
+    );
+    const tierUpper = tier.toUpperCase();
+    const defaultPrice = tierUpper === 'MIP' ? '₹1,000' : '₹500';
+    const priceDisplay = match?.price_display || defaultPrice;
+    const availKey = match?.availability || 'available';
+    const avail = TICKET_AVAIL_CONFIG[availKey] || TICKET_AVAIL_CONFIG.available;
+    const isSoldOut = availKey === 'sold_out';
+    return {
+      ...match,
+      priceDisplay,
+      avail,
+      isSoldOut,
+    };
+  };
+
+  const renderTicketCard = (session, tier, mealName, mealFeature) => {
+    const t = getTicketInfo(session, tier);
+    const tierName = tier.toUpperCase();
+    return (
+      <div className={`card-preview p-5 sm:p-8 flex flex-col justify-between transition-all ${t.isSoldOut ? 'opacity-65' : ''}`}>
+        <div>
+          <div className="text-[#d8b56b] text-xs tracking-[2px] font-black">{tierName}</div>
+          <div className="text-3xl sm:text-4xl font-black text-white my-2 font-serif-luxury">{t.priceDisplay}</div>
+          <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold my-2 rounded">
+            {mealName}
+          </div>
+          <ul className="text-xs text-[#d6c5b3] space-y-1.5 sm:space-y-2 my-3 sm:my-4">
+            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">
+              ✓ {tierName === 'MIP' ? 'MIP premium access' : 'VVIP event access'}
+            </li>
+            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Session {session} entry</li>
+            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
+            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ {mealFeature}</li>
+          </ul>
+        </div>
+        <div>
+          <div className={`inline-block text-[10px] sm:text-[11px] font-bold border px-2.5 py-1 rounded mb-4 ${t.avail.cls}`}>
+            ● {t.avail.label}
+          </div>
+          <div>
+            {t.isSoldOut ? (
+              <button
+                disabled
+                className="btn-outline opacity-50 cursor-not-allowed w-full text-center"
+              >
+                SOLD OUT
+              </button>
+            ) : (
+              <Link
+                to={`/tickets?session=${session}&tier=${tier.toLowerCase()}`}
+                className="btn-gold inline-block w-full text-center"
+              >
+                BOOK {tierName} ({t.priceDisplay})
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Dynamic countdown engine matching preview.html
   useEffect(() => {
@@ -747,49 +843,8 @@ export default function HomePage() {
               <span className="text-[#f1d99a] text-[11px] sm:text-xs font-bold tracking-wide">10:00 AM – 2:00 PM · COMPLIMENTARY LUNCH</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <div className="card-preview p-5 sm:p-8">
-                <div className="text-[#d8b56b] text-xs tracking-[2px] font-black">VVIP</div>
-                <div className="text-3xl sm:text-4xl font-black text-white my-2 font-serif-luxury">₹500</div>
-                <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold my-2 rounded">
-                  COMPLIMENTARY LUNCH INCLUDED
-                </div>
-                <ul className="text-xs text-[#d6c5b3] space-y-1.5 sm:space-y-2 my-3 sm:my-4">
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ VVIP event access</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Session 1 entry</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Lunch included</li>
-                </ul>
-                <div className="inline-block text-[10px] sm:text-[11px] font-bold text-[#8fe0a5] border border-[#8fe0a5]/40 px-2.5 py-1 rounded mb-4">
-                  ● AVAILABLE
-                </div>
-                <div>
-                  <Link to="/tickets" className="btn-gold">
-                    BOOK VVIP (₹500)
-                  </Link>
-                </div>
-              </div>
-
-              <div className="card-preview p-5 sm:p-8">
-                <div className="text-[#d8b56b] text-xs tracking-[2px] font-black">MIP</div>
-                <div className="text-3xl sm:text-4xl font-black text-white my-2 font-serif-luxury">₹1,000</div>
-                <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold my-2 rounded">
-                  COMPLIMENTARY LUNCH INCLUDED
-                </div>
-                <ul className="text-xs text-[#d6c5b3] space-y-1.5 sm:space-y-2 my-3 sm:my-4">
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ MIP premium access</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Session 1 entry</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Lunch included</li>
-                </ul>
-                <div className="inline-block text-[10px] sm:text-[11px] font-bold text-[#8fe0a5] border border-[#8fe0a5]/40 px-2.5 py-1 rounded mb-4">
-                  ● AVAILABLE
-                </div>
-                <div>
-                  <Link to="/tickets" className="btn-gold">
-                    BOOK MIP (₹1,000)
-                  </Link>
-                </div>
-              </div>
+              {renderTicketCard(1, 'vvip', 'COMPLIMENTARY LUNCH INCLUDED', 'Lunch included')}
+              {renderTicketCard(1, 'mip', 'COMPLIMENTARY LUNCH INCLUDED', 'Lunch included')}
             </div>
           </div>
 
@@ -800,49 +855,8 @@ export default function HomePage() {
               <span className="text-[#f1d99a] text-[11px] sm:text-xs font-bold tracking-wide">3:00 PM – 7:00 PM · COMPLIMENTARY DINNER</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <div className="card-preview p-5 sm:p-8">
-                <div className="text-[#d8b56b] text-xs tracking-[2px] font-black">VVIP</div>
-                <div className="text-3xl sm:text-4xl font-black text-white my-2 font-serif-luxury">₹500</div>
-                <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold my-2 rounded">
-                  COMPLIMENTARY DINNER INCLUDED
-                </div>
-                <ul className="text-xs text-[#d6c5b3] space-y-1.5 sm:space-y-2 my-3 sm:my-4">
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ VVIP event access</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Session 2 entry</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Dinner included</li>
-                </ul>
-                <div className="inline-block text-[10px] sm:text-[11px] font-bold text-[#8fe0a5] border border-[#8fe0a5]/40 px-2.5 py-1 rounded mb-4">
-                  ● AVAILABLE
-                </div>
-                <div>
-                  <Link to="/tickets" className="btn-gold">
-                    BOOK VVIP (₹500)
-                  </Link>
-                </div>
-              </div>
-
-              <div className="card-preview p-5 sm:p-8">
-                <div className="text-[#d8b56b] text-xs tracking-[2px] font-black">MIP</div>
-                <div className="text-3xl sm:text-4xl font-black text-white my-2 font-serif-luxury">₹1,000</div>
-                <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold my-2 rounded">
-                  COMPLIMENTARY DINNER INCLUDED
-                </div>
-                <ul className="text-xs text-[#d6c5b3] space-y-1.5 sm:space-y-2 my-3 sm:my-4">
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ MIP premium access</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Session 2 entry</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
-                  <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Dinner included</li>
-                </ul>
-                <div className="inline-block text-[10px] sm:text-[11px] font-bold text-[#8fe0a5] border border-[#8fe0a5]/40 px-2.5 py-1 rounded mb-4">
-                  ● AVAILABLE
-                </div>
-                <div>
-                  <Link to="/tickets" className="btn-gold">
-                    BOOK MIP (₹1,000)
-                  </Link>
-                </div>
-              </div>
+              {renderTicketCard(2, 'vvip', 'COMPLIMENTARY DINNER INCLUDED', 'Dinner included')}
+              {renderTicketCard(2, 'mip', 'COMPLIMENTARY DINNER INCLUDED', 'Dinner included')}
             </div>
           </div>
 

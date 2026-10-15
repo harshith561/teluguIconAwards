@@ -62,7 +62,14 @@ router.post('/track', async (req, res) => {
     }
 
     // Only track approved, publicly-visible nominees.
-    const [nominees] = await pool.query("SELECT id FROM nominees WHERE id = ? AND status = 'approved' LIMIT 1", [nomineeId]);
+    const [nominees] = await pool.query(
+      `SELECT n.id FROM nominees n
+         LEFT JOIN nominations nom ON n.nomination_id = nom.id
+        WHERE n.id = ? AND n.status = 'approved'
+          AND (n.nomination_id IS NULL OR nom.status = 'shortlisted')
+        LIMIT 1`,
+      [nomineeId]
+    );
     if (nominees.length === 0) {
       return res.status(404).json({ message: 'Nominee not found' });
     }

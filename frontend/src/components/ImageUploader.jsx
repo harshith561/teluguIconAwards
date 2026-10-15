@@ -87,7 +87,15 @@ export default function ImageUploader({
       {displayUrl ? (
         <div className="relative group rounded-xl overflow-hidden border border-champagne-500/30 bg-ink-950 p-2 flex items-center gap-3">
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-ink-800 shrink-0 border border-white/10 flex items-center justify-center">
-            <img src={displayUrl} alt="Preview" className="w-full h-full object-cover" />
+            <img
+              src={displayUrl}
+              alt="Preview"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="%231a1a24"><rect width="64" height="64" fill="%231a1a24"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff40" font-size="20">🖼️</text></svg>';
+              }}
+            />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">

@@ -89,7 +89,15 @@ router.get('/check', async (req, res) => {
       return res.status(400).json({ message: 'nominee_id is required' });
     }
 
-    const [nominees] = await pool.query('SELECT id, category_id FROM nominees WHERE id = ? LIMIT 1', [nomineeId]);
+    const [nominees] = await pool.query(
+      `SELECT n.id, n.category_id
+         FROM nominees n
+         LEFT JOIN nominations nom ON n.nomination_id = nom.id
+        WHERE n.id = ? AND n.status = 'approved'
+          AND (n.nomination_id IS NULL OR nom.status = 'shortlisted')
+        LIMIT 1`,
+      [nomineeId]
+    );
     if (nominees.length === 0) {
       return res.status(404).json({ message: 'Nominee not found' });
     }
@@ -173,7 +181,9 @@ router.post('/', async (req, res) => {
       `SELECT n.id, n.category_id, n.vote_count, c.voting_open, c.type
          FROM nominees n
          JOIN categories c ON c.id = n.category_id
+         LEFT JOIN nominations nom ON n.nomination_id = nom.id
         WHERE n.id = ? AND n.status = 'approved'
+          AND (n.nomination_id IS NULL OR nom.status = 'shortlisted')
         LIMIT 1`,
       [nominee_id]
     );

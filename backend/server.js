@@ -36,7 +36,8 @@ if (TRUST_PROXY === 'true' || TRUST_PROXY === '1') {
   app.set('trust proxy', Number(TRUST_PROXY));
 }
 
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+//app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
@@ -64,10 +65,16 @@ app.use((req, res, next) => {
   next();
 });
 
+const fs = require('fs');
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 // Nominee photos are drawn into a <canvas> on the client to build the campaign
 // poster. Canvas taints (and silently drops) cross-origin images unless the
 // response carries CORS headers, so uploads are served with permissive CORS.
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+app.use('/uploads', express.static(uploadDir, {
   cors: true,
   crossOriginResourcePolicy: 'cross-origin',
   maxAge: '7d',
@@ -162,9 +169,13 @@ const ensureDatabaseExists = async () => {
 };
 
 const ensureDatabase = async () => {
-  await ensureDatabaseExists();
+
+  try {
+    await ensureDatabaseExists();
+  } catch (_) {
+    // Shared hosting users do not have server-level CREATE DATABASE privileges.
+  }
   const connected = await testConnection();
-  if (connected) await runMigrations();
   return connected;
 };
 
@@ -198,7 +209,7 @@ const main = async () => {
         fetch(`${keepAliveUrl}/api/health`)
           .then((r) => r.json())
           .then(() => console.log('[keepalive] Ping sent to keep Railway awake'))
-          .catch(() => {});
+          .catch(() => { });
       }, 4 * 60 * 1000).unref();
     }
 
@@ -224,7 +235,7 @@ const shutdown = async (code) => {
     const { flushed, nominees } = await voteCounter.flush(pool);
     if (flushed > 0) console.log(`✓ Flushed ${flushed} vote(s) across ${nominees} nominee(s)`);
   } catch (e) { console.error('Counter flush on shutdown failed:', e.message); }
-  try { await pool.end(); } catch (e) {}
+  try { await pool.end(); } catch (e) { }
   process.exit(code);
 };
 process.on('SIGTERM', () => shutdown(0));

@@ -4,9 +4,16 @@ const multer = require('multer');
 const { pool } = require('../config/database');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 const { slugify, uniqueSlug, withNomineeCode, hasColumn } = require('../utils/nomineeIdentity');
+const { invalidate } = require('../utils/cache');
+
+const fs = require('fs');
+const uploadDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads')),
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, 'admin-' + unique + path.extname(file.originalname));
@@ -174,6 +181,8 @@ router.get('/nominations', async (req, res) => {
     if (status) {
       sql += ' WHERE n.status = ?';
       params.push(status);
+    } else {
+      sql += " WHERE n.status != 'deleted'";
     }
     sql += ' ORDER BY n.id DESC LIMIT 300';
     const [rows] = await pool.query(sql, params);
@@ -210,9 +219,19 @@ router.put('/nominations/:id', async (req, res) => {
       // Shortlisting a verified nomination promotes it to an official nominee.
       if (status === 'shortlisted') {
         promoted = await promoteNomination(nomination, category_id || nomination.category_id, conn);
+      } else if (status) {
+        // When status is undone (e.g. back to verified, rejected, or deleted),
+        // update the nominee status so it immediately stops showing up on website/voting.
+        const nomineeStatus = status === 'deleted' ? 'deleted' : status === 'rejected' ? 'rejected' : 'archived';
+        await conn.query(
+          'UPDATE nominees SET status = ? WHERE nomination_id = ?',
+          [nomineeStatus, req.params.id]
+        );
       }
 
       await conn.commit();
+      invalidate('nominees');
+      invalidate('nominee:');
     } catch (txErr) {
       try { await conn.rollback(); } catch (_) {}
       throw txErr;
@@ -230,11 +249,25 @@ router.put('/nominations/:id', async (req, res) => {
 });
 
 router.delete('/nominations/:id', async (req, res) => {
+  let conn;
   try {
-    await pool.query('DELETE FROM nominations WHERE id = ?', [req.params.id]);
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // Mark nomination as deleted
+    await conn.query("UPDATE nominations SET status = 'deleted' WHERE id = ?", [req.params.id]);
+    // Also mark any associated nominee as deleted so it is immediately removed from voting and website
+    await conn.query("UPDATE nominees SET status = 'deleted' WHERE nomination_id = ?", [req.params.id]);
+
+    await conn.commit();
+    invalidate('nominees');
+    invalidate('nominee:');
     res.json({ message: 'Nomination deleted' });
   } catch (error) {
+    if (conn) { try { await conn.rollback(); } catch (_) {} }
     res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -388,6 +421,7 @@ router.post('/nominees', async (req, res) => {
       return { id: result.insertId, slug, nominee_code: nomineeCode };
     });
 
+    invalidate('nominees');
     res.status(201).json({ message: 'Nominee created successfully', ...created });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -445,6 +479,8 @@ router.put('/nominees/:id', async (req, res) => {
         featured === undefined ? null : featured ? 1 : 0, status, category_id, slug,
         ...extraColumns.map((column) => profile[column]), id]
     );
+    invalidate('nominees');
+    invalidate('nominee:');
     res.json({ message: 'Nominee updated', slug: slug || undefined });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -452,11 +488,31 @@ router.put('/nominees/:id', async (req, res) => {
 });
 
 router.delete('/nominees/:id', async (req, res) => {
+  let conn;
   try {
-    await pool.query('DELETE FROM nominees WHERE id = ?', [req.params.id]);
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [nominee] = await conn.query('SELECT nomination_id FROM nominees WHERE id = ?', [req.params.id]);
+    if (nominee.length > 0 && nominee[0].nomination_id) {
+      // Revert the nomination status from shortlisted back to verified
+      await conn.query(
+        "UPDATE nominations SET status = 'verified' WHERE id = ? AND status = 'shortlisted'",
+        [nominee[0].nomination_id]
+      );
+    }
+
+    await conn.query('DELETE FROM nominees WHERE id = ?', [req.params.id]);
+
+    await conn.commit();
+    invalidate('nominees');
+    invalidate('nominee:');
     res.json({ message: 'Nominee deleted' });
   } catch (error) {
+    if (conn) { try { await conn.rollback(); } catch (_) {} }
     res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

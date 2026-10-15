@@ -19,9 +19,10 @@ const TOKEN_MINUTES = 30;
 
 const STATUS_LABELS = {
   pending: { label: 'Under Review', tone: 'pending', note: 'Our team is reviewing your nomination. You will hear from us shortly.' },
-  shortlisted: { label: 'Approved — Official Nominee', tone: 'approved', note: 'Your nomination is approved. Your public nominee page, QR code and campaign kit are live below.' },
-  verified: { label: 'Approved — Official Nominee', tone: 'approved', note: 'Your nomination is approved. Your public nominee page, QR code and campaign kit are live below.' },
+  verified: { label: 'Verified', tone: 'pending', note: 'Your details have been verified by our team. Shortlisting for voting is underway.' },
+  shortlisted: { label: 'Approved — Official Nominee', tone: 'approved', note: 'Your nomination is approved and shortlisted. Your public nominee page, QR code and campaign kit are live below.' },
   rejected: { label: 'Not Selected', tone: 'rejected', note: 'Thank you for nominating. This nomination was not shortlisted for 2026.' },
+  deleted: { label: 'Removed', tone: 'rejected', note: 'This nomination has been removed.' },
   archived: { label: 'Withdrawn', tone: 'rejected', note: 'This nomination is no longer active.' },
 };
 
@@ -193,8 +194,8 @@ router.post('/lookup', async (req, res) => {
 
     const nominations = matched.map((row) => {
       const nominee = row.nominee;
-      const isLive = Boolean(nominee) && String(nominee.status) === 'approved';
-      const approved = ['shortlisted', 'verified'].includes(row.nomination_status);
+      const isLive = Boolean(nominee) && String(nominee.status) === 'approved' && row.nomination_status === 'shortlisted';
+      const approved = row.nomination_status === 'shortlisted';
 
       // Never promise a kit that isn't live. A nomination can be approved
       // before its nominee page exists, and saying "Official Nominee" then

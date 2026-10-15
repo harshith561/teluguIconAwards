@@ -7,7 +7,7 @@ export const API_BASE = rawEnv
 
 export const getAssetUrl = (url) => {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url;
   const origin = API_BASE.endsWith('/api') ? API_BASE.slice(0, -4) : API_BASE;
   if (origin && origin !== '/api') {
     return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;

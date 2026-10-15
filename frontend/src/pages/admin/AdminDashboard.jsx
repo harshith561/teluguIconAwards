@@ -61,8 +61,14 @@ export default function AdminDashboard() {
 
   const currentTab = TABS.find((t) => location.pathname === `/admin/${t.key}` || (t.key === '' && location.pathname === '/admin')) || TABS[0];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      const auditId = localStorage.getItem('admin_audit_id');
+      await api.post('/auth/logout', { audit_id: auditId });
+    } catch (_) {}
     localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_audit_id');
+    localStorage.removeItem('admin_user');
     navigate('/admin/login');
   };
 
@@ -402,6 +408,7 @@ function NominationsTab() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [editingNomination, setEditingNomination] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const load = (force = false) => {
     setLoading(true);
@@ -424,12 +431,51 @@ function NominationsTab() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const deleteNomination = async (id, name) => {
-    if (!window.confirm(`Permanently delete nomination for "${name || 'this creator'}"? This cannot be undone.`)) return;
-    const res = await api.delete(`/admin/nominations/${id}`);
-    setMessage({ type: 'success', text: res.message || 'Nomination deleted' });
-    load(true);
-    setTimeout(() => setMessage(null), 3000);
+  const confirmShortlist = (n) => {
+    setConfirmModal({
+      type: 'shortlist',
+      title: 'Confirm Nominee Shortlist ✅',
+      creator: n.creator_name || n.full_name,
+      category: n.category_name,
+      warning: '⚠️ Critical Notice: Shortlisting this creator will immediately promote them to an Official Nominee and make them LIVE for public voting on the website.',
+      subWarning: 'Please verify all creator details before proceeding. Once voting begins, removing them disrupts public votes.',
+      confirmLabel: 'Confirm & Shortlist ✅',
+      confirmClass: 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/40',
+      onConfirm: () => updateStatus(n.id, 'shortlisted'),
+    });
+  };
+
+  const confirmUndo = (n) => {
+    setConfirmModal({
+      type: 'undo',
+      title: 'Warning: Undo Shortlist ↩️',
+      creator: n.creator_name || n.full_name,
+      category: n.category_name,
+      warning: '⚠️ Warning: Are you sure you want to revert this nomination back to "Verified"?',
+      subWarning: 'The creator will be unpublished and immediately removed from the live website and public voting.',
+      confirmLabel: 'Yes, Revert to Verified',
+      confirmClass: 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/40',
+      onConfirm: () => updateStatus(n.id, 'verified'),
+    });
+  };
+
+  const confirmDeleteNomination = (n) => {
+    setConfirmModal({
+      type: 'delete',
+      title: 'Confirm Delete Nomination 🗑️',
+      creator: n.creator_name || n.full_name,
+      category: n.category_name,
+      warning: '⚠️ Warning: Are you sure you want to delete this nomination?',
+      subWarning: 'This nomination will be marked as deleted and any associated nominee profile will be immediately removed from public voting.',
+      confirmLabel: 'Yes, Delete Nomination 🗑️',
+      confirmClass: 'bg-burgundy-600 hover:bg-burgundy-500 text-white shadow-lg shadow-burgundy-900/40',
+      onConfirm: async () => {
+        const res = await api.delete(`/admin/nominations/${n.id}`);
+        setMessage({ type: 'success', text: res.message || 'Nomination deleted' });
+        load(true);
+        setTimeout(() => setMessage(null), 3000);
+      },
+    });
   };
 
   const handleUpdateNomination = async (e) => {
@@ -468,6 +514,7 @@ function NominationsTab() {
             { key: 'verified', label: 'Verified ✓' },
             { key: 'shortlisted', label: 'Shortlisted ✅' },
             { key: 'rejected', label: 'Rejected ❌' },
+            { key: 'deleted', label: 'Deleted 🗑️' },
           ].map((f) => (
             <button
               key={f.key}
@@ -526,6 +573,7 @@ function NominationsTab() {
                   <option value="verified">Verified ✓</option>
                   <option value="shortlisted">Shortlisted ✅ (Promote to Nominee)</option>
                   <option value="rejected">Rejected ❌</option>
+                  <option value="deleted">Deleted 🗑️</option>
                 </select>
               </div>
               <div>
@@ -543,6 +591,60 @@ function NominationsTab() {
                 <button type="submit" className="btn-gold !py-1.5 text-xs">Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation & Warning Modal for Shortlist, Undo, and Delete */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-champagne-500/40 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h3 className="font-bold text-white text-base flex items-center gap-2">
+                {confirmModal.title}
+              </h3>
+              <button onClick={() => setConfirmModal(null)} className="text-white/60 hover:text-white text-sm p-1">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="text-white font-semibold text-sm">{confirmModal.creator}</div>
+                {confirmModal.category && <div className="text-champagne-400 text-xs mt-0.5">{confirmModal.category}</div>}
+              </div>
+
+              <div className={`p-3.5 rounded-xl border space-y-1.5 ${
+                confirmModal.type === 'shortlist'
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                  : confirmModal.type === 'undo'
+                    ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                    : 'bg-burgundy-950/50 border-burgundy-500/40 text-red-200'
+              }`}>
+                <p className="font-semibold text-xs leading-relaxed">{confirmModal.warning}</p>
+                {confirmModal.subWarning && (
+                  <p className="opacity-80 text-[11px] leading-relaxed">{confirmModal.subWarning}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/70 text-xs font-medium transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${confirmModal.confirmClass}`}
+              >
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -589,7 +691,8 @@ function NominationsTab() {
                         n.status === 'shortlisted' ? 'bg-emerald-500/15 text-emerald-400'
                           : n.status === 'verified' ? 'bg-white/10 text-white/70'
                             : n.status === 'rejected' ? 'bg-burgundy-900/50 text-burgundy-400'
-                              : 'bg-champagne-500/15 text-champagne-400'
+                              : n.status === 'deleted' ? 'bg-red-950/60 text-red-400'
+                                : 'bg-champagne-500/15 text-champagne-400'
                       }`}>
                         {n.status}
                       </span>
@@ -603,15 +706,19 @@ function NominationsTab() {
                       )}
                       {n.status === 'verified' && (
                         <>
-                          <button onClick={() => updateStatus(n.id, 'shortlisted')} className="text-emerald-400 hover:text-emerald-300 text-xs font-medium">Shortlist ✅</button>
+                          <button onClick={() => confirmShortlist(n)} className="text-emerald-400 hover:text-emerald-300 text-xs font-medium">Shortlist ✅</button>
                           <button onClick={() => updateStatus(n.id, 'rejected')} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Reject</button>
                         </>
                       )}
-                      {n.status === 'shortlisted' && (
-                        <button onClick={() => updateStatus(n.id, 'verified')} className="text-white/40 hover:text-white text-xs font-medium">Undo</button>
+                      {n.status === 'deleted' && (
+                        <button onClick={() => updateStatus(n.id, 'pending')} className="text-champagne-400 hover:text-champagne-300 text-xs font-medium">Restore ↩️</button>
                       )}
-                      <button onClick={() => setEditingNomination(n)} className="text-champagne-400 hover:text-champagne-300 text-xs font-medium">Edit ✏️</button>
-                      <button onClick={() => deleteNomination(n.id, n.creator_name || n.full_name)} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Delete 🗑️</button>
+                      {n.status !== 'shortlisted' && (
+                        <button onClick={() => setEditingNomination(n)} className="text-champagne-400 hover:text-champagne-300 text-xs font-medium">Edit ✏️</button>
+                      )}
+                      {n.status !== 'deleted' && (
+                        <button onClick={() => confirmDeleteNomination(n)} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Delete 🗑️</button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -635,6 +742,7 @@ function NomineesTab() {
   const [editingPhotoNominee, setEditingPhotoNominee] = useState(null);
   const [editingNominee, setEditingNominee] = useState(null);
   const [campaignNominee, setCampaignNominee] = useState(null);
+  const [confirmDeleteNominee, setConfirmDeleteNominee] = useState(null);
   const [newNominee, setNewNominee] = useState({
     full_name: '',
     category_id: '',
@@ -672,8 +780,11 @@ function NomineesTab() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const handleDeleteNominee = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to permanently delete "${name}"? This cannot be undone.`)) return;
+  const handleDeleteNominee = (n) => {
+    setConfirmDeleteNominee(n);
+  };
+
+  const performDeleteNominee = async (id) => {
     const res = await api.delete(`/admin/nominees/${id}`);
     setMessage({ type: 'success', text: res.message || 'Nominee deleted' });
     load(true);
@@ -1045,6 +1156,55 @@ function NomineesTab() {
         </div>
       )}
 
+      {/* Confirmation Modal for Deleting Nominee */}
+      {confirmDeleteNominee && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-burgundy-500/40 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <span>🗑️</span> Confirm Delete Nominee
+              </h3>
+              <button onClick={() => setConfirmDeleteNominee(null)} className="text-white/60 hover:text-white text-sm p-1">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="text-white font-semibold text-sm">{confirmDeleteNominee.full_name}</div>
+                {confirmDeleteNominee.category_name && <div className="text-champagne-400 text-xs mt-0.5">{confirmDeleteNominee.category_name}</div>}
+                {confirmDeleteNominee.nominee_code && <div className="text-white/40 text-[10px] mt-0.5">Code: {confirmDeleteNominee.nominee_code}</div>}
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-burgundy-950/50 border border-burgundy-500/40 text-red-200 space-y-1.5">
+                <p className="font-semibold text-xs leading-relaxed">⚠️ Are you sure you want to delete this official nominee?</p>
+                <p className="opacity-80 text-[11px] leading-relaxed">
+                  This creator will be immediately removed from the live website and public voting. If linked to a nomination, their status will revert to "Verified".
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteNominee(null)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/70 text-xs font-medium transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  performDeleteNominee(confirmDeleteNominee.id);
+                  setConfirmDeleteNominee(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-burgundy-600 hover:bg-burgundy-500 text-white text-xs font-bold transition-all shadow-lg shadow-burgundy-900/40"
+              >
+                Yes, Delete Nominee 🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="glass-card">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1160,7 +1320,7 @@ function NomineesTab() {
                       <button onClick={() => setEditingPhotoNominee(n)} className="text-xs text-champagne-400 hover:text-champagne-300 font-medium">Photo 📷</button>
                       <a href={`/nominee/${nomineeSlug}`} target="_blank" rel="noreferrer" className="text-white/70 hover:text-white text-xs font-medium">View ↗</a>
                       <button onClick={() => toggleStatus(n)} className="text-white/40 hover:text-white text-xs font-medium">{n.status === 'approved' ? 'Archive' : 'Activate'}</button>
-                      <button onClick={() => handleDeleteNominee(n.id, n.full_name)} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Delete 🗑️</button>
+                      <button onClick={() => handleDeleteNominee(n)} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Delete 🗑️</button>
                     </td>
                   </tr>
                   );
@@ -2481,7 +2641,15 @@ function PastEventsTab() {
               <div key={ev.id} className="glass-card p-5 flex flex-wrap items-start justify-between gap-3 sm:gap-4">
                 <div className="flex gap-3 min-w-0 flex-1">
                   {ev.poster_url && (
-                    <img src={getAssetUrl(ev.poster_url)} alt="" className="w-16 h-20 object-cover rounded-lg shrink-0 border border-white/10" />
+                    <img
+                      src={getAssetUrl(ev.poster_url)}
+                      alt=""
+                      className="w-16 h-20 object-cover rounded-lg shrink-0 border border-white/10"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 64 80" fill="%231a1a24"><rect width="64" height="80" fill="%231a1a24"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff40" font-size="20">🖼️</text></svg>';
+                      }}
+                    />
                   )}
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-champagne-400 uppercase break-words">{ev.year} • {ev.slug}</div>

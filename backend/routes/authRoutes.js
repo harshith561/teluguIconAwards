@@ -26,13 +26,65 @@ router.post('/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    // Record login in audit_logs with client IP and user_name
+    let auditId = null;
+    try {
+      const forwarded = req.headers['x-forwarded-for'];
+      let ip = forwarded ? forwarded.split(',')[0].trim() : (req.socket?.remoteAddress || req.ip || '127.0.0.1');
+      if (ip === '::1' || ip === '::ffff:127.0.0.1') ip = '127.0.0.1';
+      else if (ip && ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
+
+      const userName = user.name || user.email;
+      const [auditRes] = await pool.query(
+        `INSERT INTO audit_logs (admin_id, admin_email, user_name, action, entity_type, details, ip_address, created_at, logout_at)
+         VALUES (?, ?, ?, 'LOGIN', 'Portal Access', 'Active portal session', ?, NOW(), NULL)`,
+        [user.id, user.email, userName, ip]
+      );
+      auditId = auditRes.insertId;
+    } catch (auditErr) {
+      console.error('Failed to log login audit:', auditErr.message);
+    }
+
     res.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      audit_id: auditId,
     });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: error.message || 'Server error during login' });
+  }
+});
+
+router.post('/logout', async (req, res) => {
+  try {
+    const { audit_id } = req.body || {};
+    const token = req.headers.authorization && req.headers.authorization.split(' ')[1];
+    let userId = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = decoded.id;
+      } catch (_) {}
+    }
+
+    if (audit_id && !isNaN(Number(audit_id))) {
+      await pool.query(
+        'UPDATE audit_logs SET logout_at = NOW(), details = "User logged out" WHERE id = ?',
+        [Number(audit_id)]
+      );
+    } else if (userId) {
+      await pool.query(
+        `UPDATE audit_logs 
+         SET logout_at = NOW(), details = "User logged out" 
+         WHERE admin_id = ? AND logout_at IS NULL AND action = 'LOGIN'
+         ORDER BY id DESC LIMIT 1`,
+        [userId]
+      );
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
