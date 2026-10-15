@@ -615,6 +615,168 @@ router.delete('/sponsors/:id', async (req, res) => {
   }
 });
 
+// ========== CATEGORY SPONSORS & POSTER TEMPLATES ADMIN ==========
+router.get('/categories/:id/sponsors', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order, cs.created_at AS associated_at,
+              s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, s.is_active
+         FROM category_sponsors cs
+         JOIN sponsors s ON cs.sponsor_id = s.id
+        WHERE cs.category_id = ?
+        ORDER BY cs.sort_order ASC, s.sort_order ASC, s.id ASC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/categories/:id/sponsors', async (req, res) => {
+  try {
+    const { sponsor_id, role, sort_order } = req.body;
+    if (!sponsor_id) {
+      return res.status(400).json({ message: 'sponsor_id is required' });
+    }
+    await pool.query(
+      `INSERT INTO category_sponsors (category_id, sponsor_id, role, sort_order)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE role = VALUES(role), sort_order = VALUES(sort_order)`,
+      [req.params.id, sponsor_id, role || 'Category Partner', sort_order || 0]
+    );
+    invalidate('categories:');
+    res.status(201).json({ message: 'Sponsor associated with category successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/categories/:id/sponsors/:associationId', async (req, res) => {
+  try {
+    const { role, sort_order } = req.body;
+    await pool.query(
+      `UPDATE category_sponsors SET
+         role = COALESCE(?, role),
+         sort_order = COALESCE(?, sort_order)
+       WHERE id = ? AND category_id = ?`,
+      [role, sort_order, req.params.associationId, req.params.id]
+    );
+    invalidate('categories:');
+    res.json({ message: 'Category sponsor association updated' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.delete('/categories/:id/sponsors/:sponsorId', async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM category_sponsors WHERE category_id = ? AND sponsor_id = ?',
+      [req.params.id, req.params.sponsorId]
+    );
+    invalidate('categories:');
+    res.json({ message: 'Sponsor removed from category' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/categories/:id/poster-template', async (req, res) => {
+  try {
+    const { poster_template, poster_theme_color, poster_badge_text, poster_tagline } = req.body;
+    await pool.query(
+      `UPDATE categories SET
+         poster_template = COALESCE(?, poster_template),
+         poster_theme_color = COALESCE(?, poster_theme_color),
+         poster_badge_text = COALESCE(?, poster_badge_text),
+         poster_tagline = COALESCE(?, poster_tagline)
+       WHERE id = ?`,
+      [poster_template, poster_theme_color, poster_badge_text, poster_tagline, req.params.id]
+    );
+    invalidate('categories:');
+    res.json({ message: 'Poster template settings saved successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/categories/:id/poster-preview', async (req, res) => {
+  try {
+    const [categories] = await pool.query(
+      'SELECT id, name, slug, type, poster_template, poster_theme_color, poster_badge_text, poster_tagline FROM categories WHERE id = ? LIMIT 1',
+      [req.params.id]
+    );
+    if (!categories.length) return res.status(404).json({ message: 'Category not found' });
+    const category = categories[0];
+
+    const [sponsors] = await pool.query(
+      `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
+              s.id, s.name, s.tier, s.logo_url, s.website_url, s.tagline
+         FROM category_sponsors cs
+         JOIN sponsors s ON cs.sponsor_id = s.id
+        WHERE cs.category_id = ? AND s.is_active = 1
+        ORDER BY cs.sort_order ASC, s.sort_order ASC`,
+      [category.id]
+    );
+
+    const [nominees] = await pool.query(
+      `SELECT id, full_name, slug, photo_url, social_handle, nominee_code
+         FROM nominees
+        WHERE category_id = ?
+        ORDER BY id ASC`,
+      [category.id]
+    );
+
+    res.json({
+      category,
+      sponsors,
+      nominees,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/nominees/:id/regenerate-poster', async (req, res) => {
+  try {
+    const nomineeId = req.params.id;
+    const [nominees] = await pool.query(
+      `SELECT n.id, n.full_name, n.slug, n.photo_url, n.nominee_code, n.category_id,
+              c.name AS category_name, c.poster_template, c.poster_theme_color, c.poster_badge_text, c.poster_tagline
+         FROM nominees n
+         JOIN categories c ON n.category_id = c.id
+        WHERE n.id = ? LIMIT 1`,
+      [nomineeId]
+    );
+    if (!nominees.length) return res.status(404).json({ message: 'Nominee not found' });
+    const nominee = nominees[0];
+
+    // Log in audit_logs
+    await pool.query(
+      `INSERT INTO audit_logs (admin_id, admin_email, action, entity_type, entity_id, details)
+       VALUES (?, ?, 'regenerate_poster', 'nominee', ?, ?)`,
+      [
+        req.user?.id || null,
+        req.user?.email || 'admin',
+        nominee.id,
+        JSON.stringify({ nominee: nominee.full_name, category: nominee.category_name, timestamp: new Date() }),
+      ]
+    );
+
+    invalidate('nominee:');
+    invalidate('nominees');
+
+    res.json({
+      message: `Poster regenerated successfully for ${nominee.full_name}`,
+      nominee,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.get('/settings', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT setting_key, setting_value, group_name FROM settings');

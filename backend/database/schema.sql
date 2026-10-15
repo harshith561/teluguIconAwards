@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS `categories` (
   `icon` VARCHAR(50) NULL,
   `sort_order` INT NOT NULL DEFAULT 0,
   `voting_open` TINYINT(1) NOT NULL DEFAULT 1,
+  `poster_template` VARCHAR(50) NOT NULL DEFAULT 'gold_prestige',
+  `poster_theme_color` VARCHAR(30) NULL DEFAULT '#D4AF37',
+  `poster_badge_text` VARCHAR(100) NULL DEFAULT 'OFFICIAL NOMINEE',
+  `poster_tagline` VARCHAR(255) NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_categories_slug` (`slug`),
@@ -199,6 +203,26 @@ CREATE TABLE IF NOT EXISTS `sponsors` (
   PRIMARY KEY (`id`),
   KEY `idx_sponsors_tier` (`tier`),
   KEY `idx_sponsors_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- CATEGORY SPONSORS (Category-specific sponsor associations)
+-- =============================================
+CREATE TABLE IF NOT EXISTS `category_sponsors` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `category_id` INT UNSIGNED NOT NULL,
+  `sponsor_id` INT UNSIGNED NOT NULL,
+  `role` VARCHAR(100) NOT NULL DEFAULT 'Category Partner',
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_category_sponsor` (`category_id`, `sponsor_id`),
+  KEY `idx_cat_sponsors_category` (`category_id`),
+  KEY `idx_cat_sponsors_sponsor` (`sponsor_id`),
+  CONSTRAINT `fk_cat_sponsors_category` FOREIGN KEY (`category_id`)
+    REFERENCES `categories` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_cat_sponsors_sponsor` FOREIGN KEY (`sponsor_id`)
+    REFERENCES `sponsors` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -510,8 +534,8 @@ INSERT INTO `code_counters` (`name`, `value`) VALUES ('nominee_code', 0)
 
 -- Default Admin (password: admin123 - bcrypt hash)
 INSERT INTO `users` (`name`, `email`, `password_hash`, `role`) VALUES
-('Super Admin', 'admin@teluguiconawards.com', '$2a$10$X9RtTporFDYagIpGUaUwh.SYGVyZ92qoq7KcDJp60634Y3JbVUNPS', 'super_admin')
-ON DUPLICATE KEY UPDATE `email` = `email`;
+('Super Admin', 'admin@teluguiconawards.com', '$2a$10$v5qVTNqEDchdTshkKu0p..CqrP/nFTDy2UOo0p9eblbschzIAICii', 'super_admin')
+ON DUPLICATE KEY UPDATE `password_hash` = VALUES(`password_hash`);
 
 -- -------------------------------------------------
 -- 10 SPECIAL RECOGNITION AWARDS

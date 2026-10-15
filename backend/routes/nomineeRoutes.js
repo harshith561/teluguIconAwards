@@ -69,6 +69,95 @@ router.get('/featured', async (req, res) => {
   }
 });
 
+router.get('/:id/poster-data', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const isNumeric = /^\d+$/.test(id);
+    let nomineeSql = `SELECT n.id, n.full_name, n.slug, n.bio, n.photo_url, n.social_handle,
+                             n.followers_count, n.featured, n.status, n.nominee_code, n.vote_count,
+                             n.category_id, c.name AS category_name, c.slug AS category_slug,
+                             c.poster_template, c.poster_theme_color, c.poster_badge_text, c.poster_tagline
+                        FROM nominees n
+                        JOIN categories c ON n.category_id = c.id
+                       WHERE `;
+    const nomineeParams = [];
+    if (isNumeric) {
+      nomineeSql += '(n.id = ? OR n.slug = ?) LIMIT 1';
+      nomineeParams.push(parseInt(id, 10), id);
+    } else {
+      nomineeSql += 'n.slug = ? LIMIT 1';
+      nomineeParams.push(id);
+    }
+
+    const [nominees] = await pool.query(nomineeSql, nomineeParams);
+    if (!nominees.length) return res.status(404).json({ message: 'Nominee not found' });
+
+    const nominee = nominees[0];
+
+    // Fetch active sponsors specifically mapped to this category
+    const [sponsors] = await pool.query(
+      `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
+              s.id, s.name, s.tier, s.logo_url, s.website_url, s.tagline
+         FROM category_sponsors cs
+         JOIN sponsors s ON cs.sponsor_id = s.id
+        WHERE cs.category_id = ? AND s.is_active = 1
+        ORDER BY cs.sort_order ASC, s.sort_order ASC, s.id ASC`,
+      [nominee.category_id]
+    );
+
+    const warnings = [];
+    if (!nominee.photo_url) {
+      warnings.push('Nominee photo is missing. An elegant monogram avatar will be rendered.');
+    }
+    sponsors.forEach((sp) => {
+      if (!sp.logo_url) {
+        warnings.push(`Sponsor "${sp.name}" has no logo uploaded. Company name will be rendered as text badge.`);
+      }
+    });
+
+    res.json({
+      nominee: {
+        id: nominee.id,
+        full_name: nominee.full_name,
+        slug: nominee.slug,
+        nominee_code: nominee.nominee_code,
+        photo_url: nominee.photo_url,
+        social_handle: nominee.social_handle,
+        followers_count: nominee.followers_count,
+        category_id: nominee.category_id,
+        category_name: nominee.category_name,
+      },
+      category: {
+        id: nominee.category_id,
+        name: nominee.category_name,
+        slug: nominee.category_slug,
+        poster_template: nominee.poster_template || 'gold_prestige',
+        poster_theme_color: nominee.poster_theme_color || '#D4AF37',
+        poster_badge_text: nominee.poster_badge_text || 'OFFICIAL NOMINEE',
+        poster_tagline: nominee.poster_tagline || 'Telugu Icon Awards 2026',
+      },
+      sponsors,
+      event: {
+        name: 'Telugu Icon Digital & Influencer Awards 2026',
+        short_name: 'Telugu Icon Awards 2026',
+        brand_title: 'TELUGU ICON',
+        brand_subtitle: 'DIGITAL & INFLUENCER AWARDS 2026',
+        date: '16 November 2026',
+        venue: 'Shilpakala Vedika, Hyderabad',
+        organizer: 'Presented by Pracharam Media',
+        hashtags: '#TeluguIconAwards2026 #TIA2026',
+      },
+      validation: {
+        has_photo: Boolean(nominee.photo_url),
+        sponsors_count: sponsors.length,
+        warnings,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -78,7 +167,8 @@ router.get('/:id', async (req, res) => {
       let params;
       if (isNumeric) {
         // Try by numeric ID first, then fall back to slug
-        sql = `SELECT n.*, c.name AS category_name, c.slug AS category_slug, c.description AS category_description, c.voting_open
+        sql = `SELECT n.*, c.name AS category_name, c.slug AS category_slug, c.description AS category_description, c.voting_open,
+                      c.poster_template, c.poster_theme_color, c.poster_badge_text, c.poster_tagline
                FROM nominees n
                JOIN categories c ON n.category_id = c.id
                LEFT JOIN nominations nom ON n.nomination_id = nom.id
@@ -89,7 +179,8 @@ router.get('/:id', async (req, res) => {
         params = [parseInt(id, 10), id];
       } else {
         // Slug lookup
-        sql = `SELECT n.*, c.name AS category_name, c.slug AS category_slug, c.description AS category_description, c.voting_open
+        sql = `SELECT n.*, c.name AS category_name, c.slug AS category_slug, c.description AS category_description, c.voting_open,
+                      c.poster_template, c.poster_theme_color, c.poster_badge_text, c.poster_tagline
                FROM nominees n
                JOIN categories c ON n.category_id = c.id
                LEFT JOIN nominations nom ON n.nomination_id = nom.id
@@ -110,6 +201,5 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
-
 
 module.exports = router;

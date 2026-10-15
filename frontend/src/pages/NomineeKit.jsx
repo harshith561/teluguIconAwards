@@ -14,199 +14,41 @@ import {
   qrDataUrl,
   downloadQrPng,
 } from '../lib/nomineeCampaign';
-
-const POSTER_WIDTH = 1080;
-const POSTER_HEIGHT = 1350; // 4:5 Instagram portrait
-const STORY_WIDTH = 1080;
-const STORY_HEIGHT = 1920; // 9:16 Story / Reel cover
-
-const gold = '#D4AF37';
-const ink = '#0a0a0a';
-
-const wrapText = (ctx, text, maxWidth, maxLines) => {
-  const words = String(text || '').split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = '';
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (ctx.measureText(candidate).width > maxWidth && line) {
-      lines.push(line);
-      line = word;
-      if (lines.length === maxLines) break;
-    } else {
-      line = candidate;
-    }
-  }
-  if (lines.length < maxLines && line) lines.push(line);
-  if (lines.length === maxLines) {
-    let last = lines[maxLines - 1];
-    while (ctx.measureText(`${last}…`).width > maxWidth && last.length > 1) last = last.slice(0, -1);
-    lines[maxLines - 1] = `${last.trimEnd()}…`;
-  }
-  return lines;
-};
-
-const drawLines = (ctx, lines, centerX, startY, lineHeight) => {
-  lines.forEach((line, index) => {
-    ctx.fillText(line, centerX, startY + index * lineHeight);
-  });
-};
-
-const loadImage = (src) =>
-  new Promise((resolve) => {
-    if (!src) { resolve(null); return; }
-    const img = new Image();
-    // Required, otherwise drawing a cross-origin photo taints the canvas and
-    // toDataURL() throws - the poster would silently export blank.
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
-
-// Builds the nominee poster. Shared by the 4:5 poster and the 9:16 story so
-// the two never drift apart.
-const buildPoster = async (nominee, size, qrImage) => {
-  const canvas = document.createElement('canvas');
-  canvas.width = size.width;
-  canvas.height = size.height;
-  const ctx = canvas.getContext('2d');
-  const S = size.width / 1080; // scale factor vs the 1080px design
-  const cx = size.width / 2;
-
-  const photo = await loadImage(nominee.photo_url ? getAssetUrl(nominee.photo_url) : null);
-
-  // Background
-  const bg = ctx.createLinearGradient(0, 0, 0, size.height);
-  bg.addColorStop(0, '#0a0a0a');
-  bg.addColorStop(0.5, '#160d1b');
-  bg.addColorStop(1, '#080808');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, size.width, size.height);
-
-  // Gold borders
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 14 * S;
-  ctx.strokeRect(40 * S, 40 * S, size.width - 80 * S, size.height - 80 * S);
-  ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
-  ctx.lineWidth = 2 * S;
-  ctx.strokeRect(55 * S, 55 * S, size.width - 110 * S, size.height - 110 * S);
-
-  ctx.textAlign = 'center';
-
-  // Header
-  ctx.fillStyle = gold;
-  ctx.font = `bold ${30 * S}px "Cinzel", Georgia, serif`;
-  drawLines(ctx, wrapText(ctx, EVENT.toUpperCase(), size.width - 160 * S, 2), cx, 128 * S, 36 * S);
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `500 ${22 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.fillText('O F F I C I A L   N O M I N E E', cx, 186 * S);
-
-  // Photo in a gold ring
-  const ringRadius = 240 * S;
-  const ringY = 480 * S;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, ringY, ringRadius, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.fillStyle = '#1c1c1c';
-  ctx.fillRect(cx - ringRadius, ringY - ringRadius, ringRadius * 2, ringRadius * 2);
-  if (photo) {
-    const side = Math.min(photo.width, photo.height);
-    ctx.drawImage(photo, (photo.width - side) / 2, (photo.height - side) / 2, side, side, cx - ringRadius, ringY - ringRadius, ringRadius * 2, ringRadius * 2);
-  } else {
-    ctx.fillStyle = gold;
-    ctx.font = `${120 * S}px serif`;
-    ctx.fillText('🏆', cx, ringY + 40 * S);
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 8 * S;
-  ctx.beginPath();
-  ctx.arc(cx, ringY, ringRadius + 4 * S, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Name
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `bold ${58 * S}px "Cinzel", Georgia, serif`;
-  drawLines(ctx, wrapText(ctx, nominee.full_name || 'Creator Name', size.width - 200 * S, 2), cx, 800 * S, 66 * S);
-
-  if (nominee.social_handle) {
-    ctx.fillStyle = gold;
-    ctx.font = `600 ${26 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-    drawLines(ctx, wrapText(ctx, nominee.social_handle, size.width - 240 * S, 1), cx, 862 * S, 30 * S);
-  }
-
-  // Category
-  ctx.fillStyle = 'rgba(212, 175, 55, 0.15)';
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 2 * S;
-  const boxY = 900 * S;
-  const boxH = 92 * S;
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(140 * S, boxY, size.width - 280 * S, boxH, 20 * S);
-  else ctx.rect(140 * S, boxY, size.width - 280 * S, boxH);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `bold ${28 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  drawLines(ctx, wrapText(ctx, `NOMINATED FOR: ${(nominee.category_name || 'CREATOR').toUpperCase()}`, size.width - 330 * S, 1), cx, boxY + 56 * S, 34 * S);
-
-  // Nominee code + unique URL - both per-nominee, never generic
-  ctx.fillStyle = gold;
-  ctx.font = `600 ${23 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.fillText(`Nominee Code: ${nominee.nominee_code || 'TIC26'}`, cx, 1035 * S);
-
-  // CTA
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `bold ${40 * S}px "Cinzel", Georgia, serif`;
-  ctx.fillText('V O T E   N O W', cx, 1105 * S);
-
-  // QR (unique per nominee, links straight to their page)
-  const qrSize = 220 * S;
-  if (qrImage) {
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(cx - qrSize / 2 - 12 * S, 1140 * S, qrSize + 24 * S, qrSize + 24 * S);
-    ctx.drawImage(qrImage, cx - qrSize / 2, 1140 * S + 12 * S, qrSize, qrSize);
-  }
-  ctx.fillStyle = gold;
-  ctx.font = `bold ${26 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.fillText('SCAN QR TO VOTE', cx, 1140 * S + qrSize + 52 * S);
-
-  // The nominee's own URL
-  const shortUrl = nomineeUrl(nominee).replace(/^https?:\/\//, '');
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-  ctx.font = `600 ${26 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  drawLines(ctx, wrapText(ctx, shortUrl, size.width - 200 * S, 1), cx, 1140 * S + qrSize + 100 * S, 32 * S);
-
-  // Footer
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-  ctx.font = `${19 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.fillText('100% Verified OTP Public Voting • Presented by Pracharam Media', cx, size.height - 62 * S);
-  ctx.fillText(`${EVENT} • 16 November 2026, Shilpakala Vedika, Hyderabad`, cx, size.height - 30 * S);
-
-  return canvas;
-};
+import {
+  buildPoster,
+  buildCampaignKitZip,
+  POSTER_TEMPLATES,
+  POSTER_WIDTH,
+  POSTER_HEIGHT,
+  STORY_WIDTH,
+  STORY_HEIGHT,
+  loadImage,
+} from '../lib/posterRenderer';
 
 export default function NomineeKit() {
   const [searchParams] = useSearchParams();
   const [nominees, setNominees] = useState([]);
   const [selectedNominee, setSelectedNominee] = useState(null);
+  const [categoryData, setCategoryData] = useState(null);
+  const [categorySponsors, setCategorySponsors] = useState([]);
   const [search, setSearch] = useState('');
   const [copiedKey, setCopiedKey] = useState(null);
   const [posterWarning, setPosterWarning] = useState(null);
+  const [isGeneratingZip, setIsGeneratingZip] = useState(false);
+  const [zipSuccessMessage, setZipSuccessMessage] = useState(null);
+
   const posterRef = useRef(null);
   const storyRef = useRef(null);
+  const qrImageRef = useRef(null);
 
+  // Load active nominees
   useEffect(() => {
     api.get('/nominees').then((data) => {
       if (Array.isArray(data)) setNominees(data);
     }).catch(() => {});
   }, []);
 
+  // Sync selected nominee from query parameter or default to first
   useEffect(() => {
     if (!nominees.length) return;
     const requested = searchParams.get('nominee');
@@ -215,6 +57,38 @@ export default function NomineeKit() {
       : null;
     setSelectedNominee(match || nominees[0]);
   }, [nominees, searchParams]);
+
+  // Fetch full category poster data & category sponsors whenever selected nominee changes
+  useEffect(() => {
+    if (!selectedNominee) return;
+    let cancelled = false;
+
+    // Fetch poster data from API
+    api.get(`/nominees/${selectedNominee.id}/poster-data`)
+      .then((data) => {
+        if (cancelled) return;
+        if (data.category) setCategoryData(data.category);
+        if (Array.isArray(data.sponsors)) setCategorySponsors(data.sponsors);
+        if (data.validation?.warnings?.length) {
+          setPosterWarning(data.validation.warnings.join(' '));
+        } else {
+          setPosterWarning(null);
+        }
+      })
+      .catch(() => {
+        // Fallback: fetch directly from category sponsors endpoint
+        if (selectedNominee.category_id) {
+          api.get(`/categories/${selectedNominee.category_id}/sponsors`)
+            .then((spons) => {
+              if (cancelled) return;
+              if (Array.isArray(spons)) setCategorySponsors(spons);
+            })
+            .catch(() => {});
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedNominee]);
 
   const copyToClipboard = useCallback((text, key) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -231,7 +105,7 @@ export default function NomineeKit() {
     link.remove();
   };
 
-  // Render both canvases whenever the selected nominee changes.
+  // Render both canvases whenever selected nominee or category sponsors change
   useEffect(() => {
     if (!selectedNominee) return undefined;
     let cancelled = false;
@@ -240,27 +114,47 @@ export default function NomineeKit() {
       try {
         track(selectedNominee.id, 'kit_view');
         const qrValue = qrUrl(selectedNominee);
-        // Local generation first; if the module or canvas fails, fall back to a
-        // remote image. The poster must never silently ship without a QR.
+
         let qrSource;
         try {
           qrSource = await qrDataUrl(qrValue, 640);
         } catch (_) {
           qrSource = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue)}&size=640x640&margin=8&format=png`;
         }
-        const qrImage = await loadImage(qrSource);
-        const poster = await buildPoster(selectedNominee, { width: POSTER_WIDTH, height: POSTER_HEIGHT }, qrImage);
-        const story = await buildPoster(selectedNominee, { width: STORY_WIDTH, height: STORY_HEIGHT }, qrImage);
+        const qrImg = await loadImage(qrSource);
+        qrImageRef.current = qrImg;
+
+        // Render 4:5 Poster and 9:16 Story using category template and category sponsors
+        const posterCanvas = await buildPoster(selectedNominee, {
+          format: 'poster',
+          category: categoryData,
+          sponsors: categorySponsors,
+          qrImage: qrImg,
+        });
+
+        const storyCanvas = await buildPoster(selectedNominee, {
+          format: 'story',
+          category: categoryData,
+          sponsors: categorySponsors,
+          qrImage: qrImg,
+        });
+
         if (cancelled) return;
-        const copy = (from, to) => {
+
+        const copyToView = (from, to) => {
           if (!to) return;
           to.width = from.width;
           to.height = from.height;
-          to.getContext('2d').drawImage(from, 0, 0);
+          const ctx = to.getContext('2d');
+          ctx.drawImage(from, 0, 0);
         };
-        copy(poster, posterRef.current);
-        copy(story, storyRef.current);
-        setPosterWarning(qrImage ? null : 'The QR code could not be generated. Do not print this poster without reloading — the printed URL is still correct.');
+
+        copyToView(posterCanvas, posterRef.current);
+        copyToView(storyCanvas, storyRef.current);
+
+        if (!qrImg) {
+          setPosterWarning('The QR code could not be generated. Do not print this poster without reloading — the printed URL is still correct.');
+        }
       } catch (error) {
         console.error('Poster generation failed:', error);
         setPosterWarning('Poster generation failed. Please reload this page.');
@@ -268,7 +162,52 @@ export default function NomineeKit() {
     })();
 
     return () => { cancelled = true; };
-  }, [selectedNominee]);
+  }, [selectedNominee, categoryData, categorySponsors]);
+
+  // Handle Full Campaign Kit ZIP Download
+  const handleDownloadZip = async () => {
+    if (!selectedNominee || !posterRef.current || isGeneratingZip) return;
+    setIsGeneratingZip(true);
+    setZipSuccessMessage(null);
+
+    try {
+      track(selectedNominee.id, 'kit_download', { source: 'zip' });
+
+      // Generate QR data url for ZIP
+      const qrValue = qrUrl(selectedNominee);
+      let qrPngData = null;
+      try {
+        qrPngData = await qrDataUrl(qrValue, 1200);
+      } catch (_) {}
+
+      const { blob, filename } = await buildCampaignKitZip({
+        nominee: selectedNominee,
+        category: categoryData,
+        sponsors: categorySponsors,
+        posterCanvas: posterRef.current,
+        storyCanvas: storyRef.current,
+        qrDataUrl: qrPngData,
+      });
+
+      // Trigger browser download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setZipSuccessMessage('✓ Campaign Kit ZIP downloaded successfully!');
+      setTimeout(() => setZipSuccessMessage(null), 4000);
+    } catch (err) {
+      console.error('ZIP generation failed:', err);
+      alert('Could not package ZIP kit. Please try downloading posters individually.');
+    } finally {
+      setIsGeneratingZip(false);
+    }
+  };
 
   if (!selectedNominee) {
     return (
@@ -283,15 +222,19 @@ export default function NomineeKit() {
   const page = nomineeUrl(selectedNominee);
   const vote = voteUrl(selectedNominee);
   const kitUrl = getSiteUrl().replace(/^https?:\/\//, '');
-  const waMessage = `🏆 Hey friends and family! I'm nominated for *${selectedNominee.category_name || 'Creator of the Year'}* at the *${EVENT}*!\n\nPlease take 30 seconds to cast your OTP-verified vote for *${selectedNominee.full_name}*:\n\n👉 ${vote}\n\nNominee Code: ${selectedNominee.nominee_code || 'TIC26'}\nThank you for believing in me! 🙏✨ #TeluguIconAwards2026 #TIA2026`;
+  const categoryTitle = categoryData?.name || selectedNominee.category_name || 'Creator of the Year';
+  const currentTemplate = POSTER_TEMPLATES[categoryData?.poster_template || selectedNominee.poster_template || 'gold_prestige'] || POSTER_TEMPLATES.gold_prestige;
+
+  const waMessage = `🏆 Hey friends and family! I'm nominated for *${categoryTitle}* at the *${EVENT}*!\n\nPlease take 30 seconds to cast your OTP-verified vote for *${selectedNominee.full_name}*:\n\n👉 ${vote}\n\nNominee Code: ${selectedNominee.nominee_code || 'TIC26'}\nThank you for believing in me! 🙏✨ #TeluguIconAwards2026 #TIA2026`;
 
   const assets = [
+    { key: 'zip', icon: '📦', label: 'Full Campaign Kit (ZIP)', value: 'Includes Poster, Story, QR & Copy', kind: 'zip' },
+    { key: 'poster', icon: '🖼️', label: 'Nominee Poster (4:5 PNG)', kind: 'poster' },
+    { key: 'story', icon: '📱', label: 'Instagram Story (9:16 PNG)', kind: 'story' },
+    { key: 'qr', icon: '📲', label: 'High-Res QR Code (PNG)', value: qrUrl(selectedNominee), kind: 'qr' },
     { key: 'page', icon: '🔗', label: 'My Nominee Page', value: page, kind: 'copy' },
     { key: 'vote', icon: '🗳️', label: 'My Voting Link', value: vote, kind: 'copy' },
     { key: 'code', icon: '#️⃣', label: 'Nominee Code', value: selectedNominee.nominee_code || 'TIC26', kind: 'copy' },
-    { key: 'qr', icon: '📲', label: 'My QR Code', value: qrUrl(selectedNominee), kind: 'qr' },
-    { key: 'poster', icon: '🖼️', label: 'Nominee Poster (4:5)', kind: 'poster' },
-    { key: 'story', icon: '📱', label: 'Instagram Story (9:16)', kind: 'story' },
     { key: 'igpost', icon: '📸', label: 'Instagram Post Caption', kind: 'caption', value: instagramCaption(selectedNominee) },
     { key: 'igstory', icon: '⚡', label: 'Instagram Story Caption', kind: 'caption', value: instagramCaption(selectedNominee) },
     { key: 'whatsapp', icon: '💬', label: 'WhatsApp Poster + Message', kind: 'poster+copy', value: waMessage },
@@ -308,9 +251,24 @@ export default function NomineeKit() {
             Nominee <span className="gold-text">Campaign Kit</span>
           </h1>
           <p className="text-white/60 text-xs sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-            Everything you need to campaign: your page, your voting link, your QR code, posters for
-            Instagram and WhatsApp, and ready-to-post copy.
+            Everything you need to campaign: category-branded posters, Instagram stories,
+            verified QR codes, ready-to-post copy, and one-click ZIP download.
           </p>
+
+          {/* Quick ZIP download hero CTA */}
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button
+              onClick={handleDownloadZip}
+              disabled={isGeneratingZip}
+              className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-champagne-400 to-champagne-600 text-ink-900 font-bold text-sm sm:text-base hover:brightness-110 shadow-gold transition-all flex items-center gap-2"
+            >
+              <span>{isGeneratingZip ? '⏳' : '📦'}</span>
+              <span>{isGeneratingZip ? 'Packaging Campaign Kit...' : 'Download Full Campaign Kit (ZIP)'}</span>
+            </button>
+          </div>
+          {zipSuccessMessage && (
+            <p className="text-emerald-400 text-xs font-semibold mt-3 animate-fade-in">{zipSuccessMessage}</p>
+          )}
         </div>
       </section>
 
@@ -321,6 +279,7 @@ export default function NomineeKit() {
               {posterWarning}
             </div>
           )}
+
           {/* Nominee selector */}
           <div className="mb-8 sm:mb-10 max-w-xl mx-auto">
             <label className="block text-xs font-bold text-champagne-400 uppercase tracking-wider mb-2 text-center">
@@ -359,19 +318,33 @@ export default function NomineeKit() {
             {/* Poster previews */}
             <div className="space-y-6">
               <div className="card-gold p-6 text-center">
-                <h3 className="text-lg font-bold font-display text-white mb-4">Official Nominee Poster (4:5)</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold font-display text-white">Official Nominee Poster (4:5)</h3>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-champagne-500/15 text-champagne-300 border border-champagne-500/30">
+                    Template: {currentTemplate.name.split(' ')[0]}
+                  </span>
+                </div>
                 <div className="relative mx-auto max-w-[380px] rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40">
                   <canvas ref={posterRef} className="w-full h-auto block" />
                 </div>
-                <button
-                  onClick={() => {
-                    track(selectedNominee.id, 'poster_download', { source: 'poster' });
-                    downloadDataUrl(posterRef.current.toDataURL('image/png'), `Telugu-Icon-Poster-${selectedNominee.slug || selectedNominee.id}.png`);
-                  }}
-                  className="mt-6 w-full max-w-[380px] py-3.5 rounded-xl bg-champagne-500 text-ink-900 font-bold text-sm hover:bg-champagne-400 transition-all shadow-gold"
-                >
-                  Download Nominee Poster (PNG) ↓
-                </button>
+                <div className="mt-6 flex flex-col sm:flex-row gap-2 justify-center max-w-[380px] mx-auto">
+                  <button
+                    onClick={() => {
+                      track(selectedNominee.id, 'poster_download', { source: 'poster' });
+                      downloadDataUrl(posterRef.current.toDataURL('image/png'), `Telugu-Icon-Poster-${selectedNominee.slug || selectedNominee.id}.png`);
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-champagne-500 text-ink-900 font-bold text-xs hover:bg-champagne-400 transition-all shadow-gold"
+                  >
+                    Download Poster (PNG) ↓
+                  </button>
+                  <button
+                    onClick={handleDownloadZip}
+                    disabled={isGeneratingZip}
+                    className="py-3 px-4 rounded-xl bg-ink-800 border border-champagne-500/40 text-champagne-400 font-bold text-xs hover:bg-ink-700 transition-all"
+                  >
+                    📦 Full Kit (ZIP)
+                  </button>
+                </div>
               </div>
 
               <div className="card-gold p-6 text-center">
@@ -389,25 +362,75 @@ export default function NomineeKit() {
                   Download Story (PNG) ↓
                 </button>
               </div>
+
+              {/* Category Sponsors Information Block */}
+              <div className="card-gold p-5">
+                <h4 className="font-display text-sm font-bold text-white mb-2 flex items-center justify-between">
+                  <span>🤝 Official Category Partners</span>
+                  <span className="text-[11px] text-champagne-400 font-mono">
+                    {categorySponsors.length} {categorySponsors.length === 1 ? 'Sponsor' : 'Sponsors'}
+                  </span>
+                </h4>
+                {categorySponsors.length > 0 ? (
+                  <div className="space-y-2 mt-3">
+                    {categorySponsors.map((sp) => (
+                      <div key={sp.id || sp.association_id} className="flex items-center gap-3 p-2.5 rounded-xl bg-ink-900/60 border border-white/5">
+                        {sp.logo_url ? (
+                          <img src={getAssetUrl(sp.logo_url)} alt={sp.name} className="w-10 h-10 object-contain rounded-lg bg-black/40 p-1" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-champagne-500/10 border border-champagne-500/20 flex items-center justify-center text-sm font-bold text-champagne-400">
+                            {sp.name[0]}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-xs font-semibold truncate">{sp.name}</p>
+                          <p className="text-white/40 text-[10px]">{sp.role || 'Category Partner'}</p>
+                        </div>
+                        {sp.website_url && (
+                          <a href={sp.website_url} target="_blank" rel="noopener noreferrer" className="text-champagne-400 text-xs hover:underline">
+                            ↗ Visit
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-white/40 mt-2">
+                      These sponsor logos are automatically integrated into the bottom section of your official campaign poster.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/40 mt-1">
+                    No individual category sponsors assigned. The official Telugu Icon event branding and Pracharam Media endorsement are displayed.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Asset list */}
             <div className="space-y-4">
               <div className="card-gold p-6">
-                <h3 className="text-lg font-bold font-display text-white mb-1">📦 My Campaign Material</h3>
-                <p className="text-white/40 text-xs mb-4">
-                  Approved for {selectedNominee.full_name} · {selectedNominee.category_name} · {kitUrl}
-                </p>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <h3 className="text-lg font-bold font-display text-white mb-1">📦 My Campaign Material</h3>
+                    <p className="text-white/40 text-xs">
+                      Approved for {selectedNominee.full_name} · {categoryTitle}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleDownloadZip}
+                    disabled={isGeneratingZip}
+                    className="shrink-0 px-3.5 py-2 rounded-xl bg-champagne-500 text-ink-900 font-bold text-xs hover:bg-champagne-400 shadow-gold transition-all"
+                  >
+                    {isGeneratingZip ? 'Packaging...' : '⬇ Download ZIP'}
+                  </button>
+                </div>
 
-                {/* Live QR preview with the URL it encodes, so it can be verified
-                    before anything is printed or shared. */}
-                <div className="flex flex-col sm:flex-row items-center gap-5 p-4 mb-4 rounded-2xl bg-ink-900/60 border border-champagne-500/20">
+                {/* Live QR preview */}
+                <div className="flex flex-col sm:flex-row items-center gap-5 p-4 my-4 rounded-2xl bg-ink-900/60 border border-champagne-500/20">
                   <QrBlock value={qrUrl(selectedNominee)} size={150} />
                   <div className="flex-1 text-center sm:text-left">
                     <h4 className="font-bold text-white text-sm mb-1">My QR Code</h4>
                     <p className="text-white/40 text-xs mb-2">
-                      Printed on the poster above. Scans open this nominee&apos;s page with voting
-                      pre-selected. Click the code to check the link.
+                      Printed on your poster and story. Scans open your profile with OTP voting pre-selected.
                     </p>
                     <button
                       onClick={async () => {
@@ -431,6 +454,17 @@ export default function NomineeKit() {
                           <p className="text-white/35 text-[10px] font-mono truncate">{asset.value}</p>
                         )}
                       </div>
+
+                      {asset.kind === 'zip' && (
+                        <button
+                          onClick={handleDownloadZip}
+                          disabled={isGeneratingZip}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500 text-ink-900 text-[10px] font-bold hover:bg-champagne-400"
+                        >
+                          {isGeneratingZip ? 'Generating...' : '↓ Download'}
+                        </button>
+                      )}
+
                       {asset.kind === 'copy' && (
                         <button
                           onClick={() => copyToClipboard(asset.value, asset.key)}
@@ -439,7 +473,8 @@ export default function NomineeKit() {
                           {copiedKey === asset.key ? '✓ Copied' : 'Copy'}
                         </button>
                       )}
-                      {(asset.kind === 'poster' || asset.kind === 'poster+copy' || asset.kind === 'story') && (
+
+                      {(asset.kind === 'poster' || asset.kind === 'poster+copy') && (
                         <button
                           onClick={() => {
                             track(selectedNominee.id, 'poster_download', { source: asset.key });
@@ -450,6 +485,19 @@ export default function NomineeKit() {
                           ↓ PNG
                         </button>
                       )}
+
+                      {asset.kind === 'story' && (
+                        <button
+                          onClick={() => {
+                            track(selectedNominee.id, 'poster_download', { source: asset.key });
+                            downloadDataUrl(storyRef.current.toDataURL('image/png'), `Telugu-Icon-Story-${selectedNominee.slug || selectedNominee.id}.png`);
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500/10 text-champagne-400 text-[10px] font-bold border border-champagne-500/30 hover:bg-champagne-500/20"
+                        >
+                          ↓ PNG
+                        </button>
+                      )}
+
                       {asset.kind === 'qr' && (
                         <button
                           onClick={async () => {
@@ -483,7 +531,7 @@ export default function NomineeKit() {
               />
               <CopyBlock
                 title="⚡ Instagram Story Caption"
-                body={`${selectedNominee.full_name} — ${selectedNominee.category_name}\n\nSwipe up and scan to vote!\n\n${qrUrl(selectedNominee)}\n\n#TeluguIconAwards2026 #TIA2026`}
+                body={`${selectedNominee.full_name} — ${categoryTitle}\n\nSwipe up and scan to vote!\n\n${qrUrl(selectedNominee)}\n\n#TeluguIconAwards2026 #TIA2026`}
                 copiedKey={copiedKey}
                 copyKey="igstory"
                 onCopy={copyToClipboard}
@@ -498,7 +546,7 @@ export default function NomineeKit() {
 
               <div className="p-5 rounded-2xl bg-ink-800/40 border border-white/5 text-xs text-white/50 leading-relaxed">
                 <strong className="text-champagne-400 block mb-1">Creator Guidelines:</strong>
-                You are permitted to share these official badges across all channels. However, purchasing bot
+                You are permitted to share these official badges and posters across all channels. Purchasing bot
                 votes or offering monetary incentives in exchange for OTP votes is strictly monitored by our
                 anti-fraud auditor and will lead to disqualification.
               </div>

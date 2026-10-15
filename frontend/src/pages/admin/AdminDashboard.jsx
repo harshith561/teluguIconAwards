@@ -4,12 +4,14 @@ import { api, getAssetUrl, clearApiCache } from '../../api';
 import ImageUploader from '../../components/ImageUploader';
 import QrBlock from '../../components/QrBlock';
 import { getSiteUrl, downloadQrPng, qrUrl, voteUrl, nomineeUrl, whatsappShareUrl } from '../../lib/nomineeCampaign';
+import PosterTemplatesTab from './PosterTemplatesTab';
 
 const TABS = [
   { key: '', label: 'Dashboard', icon: '📊' },
   { key: 'nominations', label: 'Nominations', icon: '📝' },
   { key: 'nominees', label: 'Nominees', icon: '⭐' },
   { key: 'categories', label: 'Categories', icon: '🏷️' },
+  { key: 'poster-templates', label: 'Poster Templates & Sponsors', icon: '🎨' },
   { key: 'votes', label: 'Votes & Audit', icon: '🗳️' },
   { key: 'tickets', label: 'Tickets & Entry', icon: '🎟️' },
   { key: 'past-events', label: 'Past Events & Awardees', icon: '🏛️' },
@@ -234,6 +236,7 @@ export default function AdminDashboard() {
             <Route path="nominations" element={<NominationsTab />} />
             <Route path="nominees" element={<NomineesTab />} />
             <Route path="categories" element={<CategoriesTab />} />
+            <Route path="poster-templates" element={<PosterTemplatesTab />} />
             <Route path="votes" element={<VotesTab />} />
             <Route path="tickets" element={<TicketsTab />} />
             <Route path="past-events" element={<PastEventsTab />} />
@@ -1463,6 +1466,12 @@ function MyCampaignPanel({ nominee, onClose }) {
           >
             ⬇ DOWNLOAD CAMPAIGN MATERIAL
           </a>
+          <Link
+            to={`/admin/poster-templates?category=${record.category_id}&nominee=${record.id}`}
+            className="btn-outline !py-2 !px-3 !text-xs"
+          >
+            🎨 PREVIEW &amp; REGENERATE POSTER
+          </Link>
           <a
             href={officialUrl}
             target="_blank"
@@ -1829,7 +1838,8 @@ function CategoriesTab() {
                 </button>
               </div>
               <div className="flex items-center justify-end gap-2 text-xs">
-                <button onClick={() => setEditingCategory(c)} className="text-champagne-400 hover:text-champagne-300 font-medium">Edit ✏️</button>
+                <Link to={`/admin/poster-templates?category=${c.id}`} className="text-champagne-400 hover:text-champagne-300 font-medium">🎨 Poster &amp; Sponsors</Link>
+                <button onClick={() => setEditingCategory(c)} className="text-champagne-400 hover:text-champagne-300 font-medium ml-2">Edit ✏️</button>
                 <button onClick={() => handleDeleteCategory(c.id, c.name)} className="text-burgundy-400 hover:text-burgundy-300 font-medium ml-2">Delete 🗑️</button>
               </div>
             </div>

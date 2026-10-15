@@ -7,7 +7,7 @@ router.get('/', async (req, res) => {
   try {
     const rows = await cached('categories:all', 60, async () => {
       const [rows] = await pool.query(
-        'SELECT id, name, slug, type, description, icon, sort_order, voting_open FROM categories ORDER BY sort_order ASC'
+        'SELECT id, name, slug, type, description, icon, sort_order, voting_open, poster_template, poster_theme_color, poster_badge_text, poster_tagline FROM categories ORDER BY sort_order ASC'
       );
       return rows;
     });
@@ -21,7 +21,7 @@ router.get('/jury', async (req, res) => {
   try {
     const rows = await cached('categories:jury', 60, async () => {
       const [rows] = await pool.query(
-        "SELECT id, name, slug, description, icon FROM categories WHERE type = 'jury' ORDER BY sort_order ASC LIMIT 10"
+        "SELECT id, name, slug, description, icon, poster_template, poster_theme_color, poster_badge_text, poster_tagline FROM categories WHERE type = 'jury' ORDER BY sort_order ASC LIMIT 10"
       );
       return rows;
     });
@@ -35,7 +35,7 @@ router.get('/self-nomination', async (req, res) => {
   try {
     const rows = await cached('categories:self', 60, async () => {
       const [rows] = await pool.query(
-        "SELECT id, name, slug, description, icon FROM categories WHERE type = 'self_nomination' ORDER BY sort_order ASC LIMIT 40"
+        "SELECT id, name, slug, description, icon, poster_template, poster_theme_color, poster_badge_text, poster_tagline FROM categories WHERE type = 'self_nomination' ORDER BY sort_order ASC LIMIT 40"
       );
       return rows;
     });
@@ -50,7 +50,7 @@ router.get('/curated', async (req, res) => {
   try {
     const rows = await cached('categories:curated', 60, async () => {
       const [rows] = await pool.query(
-        "SELECT id, name, slug, description, icon FROM categories WHERE type = 'jury' ORDER BY sort_order ASC LIMIT 10"
+        "SELECT id, name, slug, description, icon, poster_template, poster_theme_color, poster_badge_text, poster_tagline FROM categories WHERE type = 'jury' ORDER BY sort_order ASC LIMIT 10"
       );
       return rows;
     });
@@ -64,10 +64,39 @@ router.get('/peoples-choice', async (req, res) => {
   try {
     const rows = await cached('categories:peoples-choice', 60, async () => {
       const [rows] = await pool.query(
-        "SELECT id, name, slug, description, icon FROM categories WHERE type = 'self_nomination' ORDER BY sort_order ASC LIMIT 40"
+        "SELECT id, name, slug, description, icon, poster_template, poster_theme_color, poster_badge_text, poster_tagline FROM categories WHERE type = 'self_nomination' ORDER BY sort_order ASC LIMIT 40"
       );
       return rows;
     });
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Category sponsors endpoint - returns active sponsors linked to this category
+router.get('/:id/sponsors', async (req, res) => {
+  try {
+    const categoryId = req.params.id;
+    const isNumeric = /^\d+$/.test(categoryId);
+    let resolvedId = isNumeric ? parseInt(categoryId, 10) : null;
+
+    if (!resolvedId) {
+      const [cat] = await pool.query('SELECT id FROM categories WHERE slug = ? LIMIT 1', [categoryId]);
+      if (cat.length > 0) resolvedId = cat[0].id;
+    }
+
+    if (!resolvedId) return res.status(404).json({ message: 'Category not found' });
+
+    const [rows] = await pool.query(
+      `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
+              s.id, s.name, s.tier, s.logo_url, s.website_url, s.tagline
+         FROM category_sponsors cs
+         JOIN sponsors s ON cs.sponsor_id = s.id
+        WHERE cs.category_id = ? AND s.is_active = 1
+        ORDER BY cs.sort_order ASC, s.sort_order ASC, s.id ASC`,
+      [resolvedId]
+    );
     res.json(rows);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -78,7 +107,7 @@ router.get('/:slug', async (req, res) => {
   try {
     const rows = await cached(`category:${req.params.slug}`, 60, async () => {
       const [rows] = await pool.query(
-        'SELECT id, name, slug, type, description, icon, sort_order, voting_open FROM categories WHERE slug = ? OR CAST(id AS CHAR) = ? LIMIT 1',
+        'SELECT id, name, slug, type, description, icon, sort_order, voting_open, poster_template, poster_theme_color, poster_badge_text, poster_tagline FROM categories WHERE slug = ? OR CAST(id AS CHAR) = ? LIMIT 1',
         [req.params.slug, req.params.slug]
       );
       return rows;
@@ -92,13 +121,24 @@ router.get('/:slug', async (req, res) => {
 
 router.post('/', authenticate, authorizeAdmin, async (req, res) => {
   try {
-    const { name, slug, type, description, icon, voting_open } = req.body;
+    const { name, slug, type, description, icon, voting_open, poster_template, poster_theme_color, poster_badge_text, poster_tagline } = req.body;
     if (!name || !slug) {
       return res.status(400).json({ message: 'Name and slug are required' });
     }
     const [result] = await pool.query(
-      'INSERT INTO categories (name, slug, type, description, icon, voting_open) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, slug, type || 'self_nomination', description || null, icon || null, voting_open === false ? 0 : 1]
+      'INSERT INTO categories (name, slug, type, description, icon, voting_open, poster_template, poster_theme_color, poster_badge_text, poster_tagline) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        name,
+        slug,
+        type || 'self_nomination',
+        description || null,
+        icon || null,
+        voting_open === false ? 0 : 1,
+        poster_template || 'gold_prestige',
+        poster_theme_color || '#D4AF37',
+        poster_badge_text || 'OFFICIAL NOMINEE',
+        poster_tagline || null,
+      ]
     );
     invalidate('categories:');
     res.status(201).json({ message: 'Category created', id: result.insertId });
@@ -109,10 +149,35 @@ router.post('/', authenticate, authorizeAdmin, async (req, res) => {
 
 router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
   try {
-    const { name, slug, type, description, icon, voting_open, sort_order } = req.body;
+    const { name, slug, type, description, icon, voting_open, sort_order, poster_template, poster_theme_color, poster_badge_text, poster_tagline } = req.body;
     await pool.query(
-      'UPDATE categories SET name = COALESCE(?, name), slug = COALESCE(?, slug), type = COALESCE(?, type), description = COALESCE(?, description), icon = COALESCE(?, icon), voting_open = COALESCE(?, voting_open), sort_order = COALESCE(?, sort_order) WHERE id = ?',
-      [name, slug, type, description, icon, voting_open === undefined ? null : voting_open ? 1 : 0, sort_order, req.params.id]
+      `UPDATE categories SET
+         name = COALESCE(?, name),
+         slug = COALESCE(?, slug),
+         type = COALESCE(?, type),
+         description = COALESCE(?, description),
+         icon = COALESCE(?, icon),
+         voting_open = COALESCE(?, voting_open),
+         sort_order = COALESCE(?, sort_order),
+         poster_template = COALESCE(?, poster_template),
+         poster_theme_color = COALESCE(?, poster_theme_color),
+         poster_badge_text = COALESCE(?, poster_badge_text),
+         poster_tagline = COALESCE(?, poster_tagline)
+       WHERE id = ?`,
+      [
+        name,
+        slug,
+        type,
+        description,
+        icon,
+        voting_open === undefined ? null : voting_open ? 1 : 0,
+        sort_order,
+        poster_template,
+        poster_theme_color,
+        poster_badge_text,
+        poster_tagline,
+        req.params.id,
+      ]
     );
     invalidate('categories:');
     res.json({ message: 'Category updated' });
