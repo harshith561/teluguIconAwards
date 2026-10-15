@@ -1,0 +1,28 @@
+# .env (secrets — DO NOT commit)
+.env
+node_modules/
+.env.local
+.env.*
+!.env.example
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads
+uploads/
+!uploads/.gitkeep
+
+# Vite
+.vite/
+
+# Local env files
+.env.local
+.env.*.local

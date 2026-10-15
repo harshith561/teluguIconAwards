@@ -1,0 +1,10 @@
+{
+  "name": "telugu-icon-awards",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telugu Icon Digital & Influencer Awards 2026",
+  "scripts": {
+    "build": "node -e \"const fs=require('fs'),cp=require('child_process'); if(fs.existsSync('frontend')){ cp.execSync('cd frontend && npm run build', {stdio:'inherit'}); } else { cp.execSync('vite build', {stdio:'inherit'}); }\"",
+    "start": "cd backend && npm start"
+  }
+}
