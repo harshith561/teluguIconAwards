@@ -2242,6 +2242,51 @@ function SettingsTab() {
 
   const update = (key, value) => setSettings({ ...settings, [key]: value });
 
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdMsg, setPwdMsg] = useState(null);
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPwdMsg(null);
+
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+      setPwdMsg({ type: 'error', text: 'All password fields are required.' });
+      return;
+    }
+    if (pwdNew.length < 6) {
+      setPwdMsg({ type: 'error', text: 'New password must be at least 6 characters.' });
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdMsg({ type: 'error', text: 'New password and confirmation do not match.' });
+      return;
+    }
+
+    setPwdLoading(true);
+    try {
+      const res = await api.put('/auth/change-password', {
+        currentPassword: pwdCurrent,
+        newPassword: pwdNew,
+      });
+
+      if (res.ok !== false && !res.message?.includes('incorrect')) {
+        setPwdMsg({ type: 'success', text: res.message || 'Password changed successfully!' });
+        setPwdCurrent('');
+        setPwdNew('');
+        setPwdConfirm('');
+      } else {
+        setPwdMsg({ type: 'error', text: res.message || 'Failed to change password.' });
+      }
+    } catch (err) {
+      setPwdMsg({ type: 'error', text: err.message || 'Failed to update password.' });
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {message && (
@@ -2292,6 +2337,77 @@ function SettingsTab() {
           </div>
         </div>
         <button onClick={save} className="btn-gold mt-6">Save All Settings</button>
+      </div>
+
+      {/* Admin Password & Security */}
+      <div className="glass-card p-6">
+        <div className="flex items-center space-x-3 mb-2">
+          <span className="text-xl">🔐</span>
+          <h2 className="font-display text-xl font-bold text-white">Admin Password & Security</h2>
+        </div>
+        <p className="text-white/40 text-xs mb-6">
+          Update the login password for your administrator account.
+        </p>
+
+        {pwdMsg && (
+          <div
+            className={`px-4 py-3 rounded-xl text-sm mb-5 border ${
+              pwdMsg.type === 'error'
+                ? 'bg-red-900/30 border-red-500/40 text-red-200'
+                : 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
+            }`}
+          >
+            {pwdMsg.text}
+          </div>
+        )}
+
+        <form onSubmit={handlePasswordChange} className="space-y-4 max-w-lg">
+          <div>
+            <label className="block text-sm text-white/60 mb-2">Current Password</label>
+            <input
+              type="password"
+              value={pwdCurrent}
+              onChange={(e) => setPwdCurrent(e.target.value)}
+              placeholder="Enter current password"
+              className="input-field"
+              autoComplete="current-password"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-white/60 mb-2">New Password (minimum 6 characters)</label>
+            <input
+              type="password"
+              value={pwdNew}
+              onChange={(e) => setPwdNew(e.target.value)}
+              placeholder="Enter new strong password"
+              className="input-field"
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-white/60 mb-2">Confirm New Password</label>
+            <input
+              type="password"
+              value={pwdConfirm}
+              onChange={(e) => setPwdConfirm(e.target.value)}
+              placeholder="Re-enter new password"
+              className="input-field"
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={pwdLoading}
+              className="btn-gold !py-2.5 px-6 disabled:opacity-50 flex items-center space-x-2"
+            >
+              {pwdLoading ? <span>Updating...</span> : <span>Update Password</span>}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

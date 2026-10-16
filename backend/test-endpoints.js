@@ -7,7 +7,7 @@ async function req(method, url, body, useAuth = false) {
   if (useAuth && token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(BASE + url, { method, headers, body: body ? JSON.stringify(body) : undefined });
   let data = null;
-  try { data = await res.json(); } catch (e) {}
+  try { data = await res.json(); } catch (e) { }
   return { status: res.status, data };
 }
 
@@ -157,21 +157,11 @@ async function check(name, method, url, body, opts = {}) {
       await req('PUT', `/api/admin/votes/${found[0].id}/flag`, { is_flagged: false, flag_reason: null }, true);
     }
   }
-
-  // ---- SUMMARY ----
-  console.log('');
-  console.log('╔══════════════════════════════════════════════════╗');
-  console.log('║      TELUGU ICON AWARDS - API ENDPOINT TEST      ║');
-  console.log('╚══════════════════════════════════════════════════╝');
-  console.log('');
   let pass = 0, fail = 0;
   for (const r of results) {
     const mark = r.ok ? '✅' : '❌';
     if (r.ok) pass++; else fail++;
     console.log(`  ${mark} [${r.status}] ${r.name}${r.detail ? '  → ' + r.detail : ''}`);
   }
-  console.log('');
-  console.log(`  ─────────────────────────────────────────`);
-  console.log(`  PASS: ${pass}   FAIL: ${fail}   TOTAL: ${results.length}`);
-  console.log('');
+
 })().catch((e) => { console.error('Fatal:', e); process.exit(1); });

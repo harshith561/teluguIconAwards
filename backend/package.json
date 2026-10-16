@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "password:change": "node scripts/change-admin-password.js",
     "db:setup": "node scripts/setup-database.js",
     "db:test": "node scripts/test-live-apis.js"
   },
