@@ -23,6 +23,29 @@ const TABS = [
   { key: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
+const getChartBarHeightClass = (val, max) => {
+  if (!val || !max || max <= 0) return 'h-0';
+  const pct = Math.round((val / max) * 14) * 5;
+  const clamped = Math.max(5, Math.min(70, pct));
+  const heightClassMap = {
+    5: 'h-[5%]',
+    10: 'h-[10%]',
+    15: 'h-[15%]',
+    20: 'h-[20%]',
+    25: 'h-[25%]',
+    30: 'h-[30%]',
+    35: 'h-[35%]',
+    40: 'h-[40%]',
+    45: 'h-[45%]',
+    50: 'h-[50%]',
+    55: 'h-[55%]',
+    60: 'h-[60%]',
+    65: 'h-[65%]',
+    70: 'h-[70%]',
+  };
+  return heightClassMap[clamped] || 'h-[5%]';
+};
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1495,8 +1518,8 @@ function MyCampaignPanel({ nominee, onClose }) {
                   const clicks = Number(day.vote_clicks) || 0;
                   return (
                     <div key={day.day} className="flex-1 flex flex-col items-center justify-end gap-0.5" title={`${day.day}: ${views} views, ${clicks} voting clicks`}>
-                      <div className="w-full rounded-t bg-champagne-500/70" style={{ height: `${(views / maxViews) * 70}%`, minHeight: views > 0 ? 3 : 0 }} />
-                      <div className="w-full rounded-t bg-emerald-500/70" style={{ height: `${(clicks / maxViews) * 70}%`, minHeight: clicks > 0 ? 3 : 0 }} />
+                      <div className={`w-full rounded-t bg-champagne-500/70 ${views > 0 ? 'min-h-[3px]' : 'min-h-0'} ${getChartBarHeightClass(views, maxViews)}`} />
+                      <div className={`w-full rounded-t bg-emerald-500/70 ${clicks > 0 ? 'min-h-[3px]' : 'min-h-0'} ${getChartBarHeightClass(clicks, maxViews)}`} />
                     </div>
                   );
                 })}

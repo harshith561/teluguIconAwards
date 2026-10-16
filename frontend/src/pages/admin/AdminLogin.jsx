@@ -29,7 +29,6 @@ export default function AdminLogin() {
         setError(data.message || 'Invalid email or password');
       }
     } catch (err) {
-      console.error('Login error:', err);
       setError(err.message || 'Network error. Please try again.');
     } finally {
       setLoading(false);

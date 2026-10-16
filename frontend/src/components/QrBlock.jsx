@@ -86,8 +86,7 @@ export default function QrBlock({
           height={size}
           role="img"
           aria-label={`QR code linking to ${displayUrl}`}
-          className="block rounded-md"
-          style={{ background: light }}
+          className="block rounded-md bg-white"
         />
       )}
     </>

@@ -172,8 +172,8 @@ export default function PosterTemplatesTab() {
 
       copyTo(posterCanvas, posterCanvasRef.current);
       copyTo(storyCanvas, storyCanvasRef.current);
-    } catch (err) {
-      console.error('Preview render failed:', err);
+    } catch (_) {
+      // Preview render failed silently without console pollution
     }
   }, [currentNominee, categoryDetails, templateKey, themeColor, badgeText, tagline, categorySponsors]);
 
@@ -421,8 +421,21 @@ export default function PosterTemplatesTab() {
                         }`}
                       >
                         <div
-                          className="w-5 h-5 rounded-full mt-0.5 shrink-0 border border-white/30"
-                          style={{ backgroundColor: tmpl.primaryColor }}
+                          className={`w-5 h-5 rounded-full mt-0.5 shrink-0 border border-white/30 ${
+                            tmpl.id === 'gold_prestige'
+                              ? 'bg-[#D4AF37]'
+                              : tmpl.id === 'royal_amethyst'
+                              ? 'bg-[#C084FC]'
+                              : tmpl.id === 'emerald_grandeur'
+                              ? 'bg-[#10B981]'
+                              : tmpl.id === 'crimson_star'
+                              ? 'bg-[#F43F5E]'
+                              : tmpl.id === 'cyber_bronze'
+                              ? 'bg-[#38BDF8]'
+                              : tmpl.id === 'midnight_sapphire'
+                              ? 'bg-[#60A5FA]'
+                              : 'bg-champagne-400'
+                          }`}
                         />
                         <div className="min-w-0">
                           <p className={`text-xs font-bold ${isSelected ? 'text-champagne-300' : 'text-white'}`}>

@@ -156,7 +156,6 @@ export default function NomineeKit() {
           setPosterWarning('The QR code could not be generated. Do not print this poster without reloading — the printed URL is still correct.');
         }
       } catch (error) {
-        console.error('Poster generation failed:', error);
         setPosterWarning('Poster generation failed. Please reload this page.');
       }
     })();
@@ -202,7 +201,6 @@ export default function NomineeKit() {
       setZipSuccessMessage('✓ Campaign Kit ZIP downloaded successfully!');
       setTimeout(() => setZipSuccessMessage(null), 4000);
     } catch (err) {
-      console.error('ZIP generation failed:', err);
       alert('Could not package ZIP kit. Please try downloading posters individually.');
     } finally {
       setIsGeneratingZip(false);

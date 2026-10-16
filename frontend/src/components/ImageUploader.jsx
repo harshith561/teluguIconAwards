@@ -45,8 +45,7 @@ export default function ImageUploader({
         };
         reader.readAsDataURL(file);
       }
-    } catch (err) {
-      console.warn('Upload fallback to base64:', err);
+    } catch (_) {
       // Fallback: convert to base64 so admin can still save seamlessly!
       const reader = new FileReader();
       reader.onloadend = () => {
