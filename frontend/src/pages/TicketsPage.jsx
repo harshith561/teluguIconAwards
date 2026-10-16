@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
-import QrBlock from '../components/QrBlock';
+// import QrBlock from '../components/QrBlock'; // (used in Step 4 ticket confirmation)
 import { api } from '../api';
+
+export const EXTERNAL_BOOKING_URL = 'https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8';
 
 const SESSION_LABELS = {
   1: { label: 'Session 1', time: '10:00 AM – 2:00 PM', food: 'Complimentary Lunch', icon: '🍽️' },
@@ -17,11 +19,23 @@ const AVAIL_CONFIG = {
   sold_out:       { label: 'SOLD OUT',         cls: 'bg-red-900/40 text-red-300 border-red-500/40' },
 };
 
-const STEPS = ['Select Session', 'Select Ticket', 'Your Details', 'Confirm & Pay', 'Your Ticket'];
+// const STEPS = ['Select Session', 'Select Ticket', 'Your Details', 'Confirm & Pay', 'Your Ticket'];
 
 export default function TicketsPage() {
   const [tickets, setTickets] = useState([]);
-  const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedSession, setSelectedSession] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const s = Number(params.get('session'));
+      return s === 2 ? 2 : 1;
+    } catch {
+      return 1;
+    }
+  });
+
+  /* =========================================================================
+     MULTI-STEP FORM & BOOKING STATES (Commented out — redirecting to FunZippy)
+     =========================================================================
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({ buyer_name: '', buyer_email: '', buyer_phone: '', quantity: 1 });
@@ -30,6 +44,7 @@ export default function TicketsPage() {
   const [error, setError] = useState(null);
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  ========================================================================= */
 
   useEffect(() => {
     api.get('/tickets/availability').then((data) => {
@@ -38,8 +53,11 @@ export default function TicketsPage() {
   }, []);
 
   const ticketsForSession = (s) => tickets.filter((t) => t.session === s && t.is_active);
-  const availTickets = (s) => ticketsForSession(s).filter((t) => t.availability !== 'sold_out');
+  // const availTickets = (s) => ticketsForSession(s).filter((t) => t.availability !== 'sold_out');
 
+  /* =========================================================================
+     INTERNAL BOOKING & PDF GENERATION LOGIC (Commented out)
+     =========================================================================
   const handleBook = async () => {
     setError(null);
     if (!form.buyer_name.trim()) return setError('Full name is required.');
@@ -68,155 +86,143 @@ export default function TicketsPage() {
     }
   };
 
-// Capture the QR as a PNG. The PDF embeds this image rather than re-rendering
-  // on the canvas, so the code is always present and crisp at any zoom - and it
-// works offline, unlike QrBlock's remote fallback.
-const buildQrPng = async () => {
-  try {
-    const { default: QRCode } = await import('qrcode');
-    return await QRCode.toDataURL(order.qr_token, {
-      width: 600,
-      margin: 2,
-      errorCorrectionLevel: 'H',
-      color: { dark: '#0a0a0a', light: '#ffffff' },
-    });
-  } catch (_) {
-    return null;
-  }
-};
-
-// jsPDF's built-in fonts are WinAnsi (Latin-1). Anything outside it (emoji,
-// curly quotes, Telugu) throws or renders as black boxes, so transliterate the
-// few glyphs the ticket uses and strip anything still unsupported.
-const toPdfText = (value) => {
-  const map = {
-    '·': '-', '–': '-', '—': '-', '’': "'", '‘': "'",
-    '“': '"', '”': '"', '₹': 'Rs.', '…': '...', ' ': ' ',
+  // Capture the QR as a PNG for PDF embedding
+  const buildQrPng = async () => {
+    try {
+      const { default: QRCode } = await import('qrcode');
+      return await QRCode.toDataURL(order.qr_token, {
+        width: 600,
+        margin: 2,
+        errorCorrectionLevel: 'H',
+        color: { dark: '#0a0a0a', light: '#ffffff' },
+      });
+    } catch (_) {
+      return null;
+    }
   };
-  let out = String(value == null ? '' : value).replace(/[·–—’‘“”₹…\u00a0]/g, (c) => map[c] || '');
-  // eslint-disable-next-line no-control-regex
-  return out.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
-};
 
-// Builds a real, self-contained .pdf file and downloads it. Text stays vector
-// (selectable and searchable) and the QR is embedded as an image, so the file
-// prints at any size and needs no network connection to open.
-const downloadTicketPdf = async () => {
-  if (!order) return;
-  setPdfBusy(true);
-  try {
-    const { jsPDF } = await import('jspdf');
-    // compress:true is not optional here - without it jsPDF stores the QR's raw
-// pixel buffer and the file balloons from ~8 KB to ~1.9 MB.
-const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compress: true });
-    const s = SESSION_LABELS[order.session] || SESSION_LABELS[1];
+  const toPdfText = (value) => {
+    const map = {
+      '·': '-', '–': '-', '—': '-', '’': "'", '‘': "'",
+      '“': '"', '”': '"', '₹': 'Rs.', '…': '...', ' ': ' ',
+    };
+    let out = String(value == null ? '' : value).replace(/[·–—’‘“”₹…\u00a0]/g, (c) => map[c] || '');
+    // eslint-disable-next-line no-control-regex
+    return out.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+  };
 
-    const PAGE_W = doc.internal.pageSize.getWidth();
-    const PAGE_H = doc.internal.pageSize.getHeight();
-    const M = 12;
-    const GOLD = [201, 162, 39];
-    const INK = [17, 17, 17];
-    const MUTED = [110, 110, 110];
+  const downloadTicketPdf = async () => {
+    if (!order) return;
+    setPdfBusy(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compress: true });
+      const s = SESSION_LABELS[order.session] || SESSION_LABELS[1];
 
-    doc.setFillColor(...GOLD);
-    doc.rect(0, 0, PAGE_W, 30, 'F');
-    doc.setTextColor(...INK);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(17);
-    doc.text('TELUGU ICON', PAGE_W / 2, 14, { align: 'center' });
-    doc.setFontSize(9.5);
-    doc.text('Digital & Influencer Awards 2026', PAGE_W / 2, 21.5, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.text('16 November 2026  |  Shilpakala Vedika, Hyderabad', PAGE_W / 2, 26.5, { align: 'center' });
+      const PAGE_W = doc.internal.pageSize.getWidth();
+      const PAGE_H = doc.internal.pageSize.getHeight();
+      const M = 12;
+      const GOLD = [201, 162, 39];
+      const INK = [17, 17, 17];
+      const MUTED = [110, 110, 110];
 
-    // QR, centred, in a white plate with a thin frame.
-    const qrPng = await buildQrPng();
-    const QR_SIZE = 62;
-    const qrX = (PAGE_W - QR_SIZE) / 2;
-    const qrY = 38;
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(...GOLD);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(qrX - 3, qrY - 3, QR_SIZE + 6, QR_SIZE + 6, 2, 2, 'FD');
-    if (qrPng) {
-      doc.addImage(qrPng, 'PNG', qrX, qrY, QR_SIZE, QR_SIZE);
-    } else {
-      doc.setDrawColor(180, 180, 180);
-      doc.setLineDashPattern([1, 1], 0);
-      doc.rect(qrX, qrY, QR_SIZE, QR_SIZE);
-      doc.setLineDashPattern([], 0);
-      doc.setFontSize(8);
-      doc.setTextColor(...MUTED);
-      doc.text('QR unavailable', PAGE_W / 2, qrY + QR_SIZE / 2, { align: 'center' });
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...INK);
-    doc.text('SCAN AT ENTRY GATE', PAGE_W / 2, qrY + QR_SIZE + 8, { align: 'center' });
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(6.5);
-    doc.setTextColor(...MUTED);
-    doc.text(toPdfText(order.qr_token).slice(0, 64), PAGE_W / 2, qrY + QR_SIZE + 12.5, { align: 'center' });
-
-    // Detail rows
-    const rows = [
-      ['Order ID', toPdfText(order.order_code), 'courier', ...GOLD],
-      ['Attendee', toPdfText(order.buyer_name), 'helvetica', ...INK],
-      ['Session', toPdfText(`Session ${order.session} - ${s.time}`), 'helvetica', ...INK],
-      ['Ticket', toPdfText(`${TIER_LABELS[order.tier] || order.tier}${order.quantity > 1 ? ` (${order.quantity} persons)` : ''}`), 'helvetica', ...INK],
-      ['Food', toPdfText(s.food), 'helvetica', ...INK],
-      ['Date', '16 November 2026', 'helvetica', ...INK],
-      ['Venue', 'Shilpakala Vedika, Hyderabad', 'helvetica', ...INK],
-    ];
-
-    let y = qrY + QR_SIZE + 20;
-    doc.setDrawColor(226, 226, 226);
-    doc.setLineWidth(0.3);
-    doc.line(M, y, PAGE_W - M, y);
-    y += 6;
-
-    const labelW = 32;
-    const valueX = PAGE_W - M;
-    for (const [label, value, font, r, g, b] of rows) {
+      doc.setFillColor(...GOLD);
+      doc.rect(0, 0, PAGE_W, 30, 'F');
+      doc.setTextColor(...INK);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(17);
+      doc.text('TELUGU ICON', PAGE_W / 2, 14, { align: 'center' });
+      doc.setFontSize(9.5);
+      doc.text('Digital & Influencer Awards 2026', PAGE_W / 2, 21.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(...MUTED);
-      doc.text(toPdfText(label), M, y);
+      doc.setFontSize(7.5);
+      doc.text('16 November 2026  |  Shilpakala Vedika, Hyderabad', PAGE_W / 2, 26.5, { align: 'center' });
 
-      doc.setFont(font, 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(r, g, b);
-      // Keep the value on one line: jsPDF does not wrap, so trim to the width.
-      const max = doc.getTextWidth(value);
-      let shown = value;
-      const avail = PAGE_W - M * 2 - labelW;
-      if (max > avail) {
-        while (shown.length > 3 && doc.getTextWidth(`${shown}...`) > avail) shown = shown.slice(0, -1);
-        shown = `${shown}...`;
+      const qrPng = await buildQrPng();
+      const QR_SIZE = 62;
+      const qrX = (PAGE_W - QR_SIZE) / 2;
+      const qrY = 38;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(...GOLD);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(qrX - 3, qrY - 3, QR_SIZE + 6, QR_SIZE + 6, 2, 2, 'FD');
+      if (qrPng) {
+        doc.addImage(qrPng, 'PNG', qrX, qrY, QR_SIZE, QR_SIZE);
+      } else {
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineDashPattern([1, 1], 0);
+        doc.rect(qrX, qrY, QR_SIZE, QR_SIZE);
+        doc.setLineDashPattern([], 0);
+        doc.setFontSize(8);
+        doc.setTextColor(...MUTED);
+        doc.text('QR unavailable', PAGE_W / 2, qrY + QR_SIZE / 2, { align: 'center' });
       }
-      doc.text(shown, valueX, y, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...INK);
+      doc.text('SCAN AT ENTRY GATE', PAGE_W / 2, qrY + QR_SIZE + 8, { align: 'center' });
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...MUTED);
+      doc.text(toPdfText(order.qr_token).slice(0, 64), PAGE_W / 2, qrY + QR_SIZE + 12.5, { align: 'center' });
 
-      y += 4;
-      doc.setDrawColor(243, 243, 243);
-      doc.line(M, y - 2.5, PAGE_W - M, y - 2.5);
-      y += 4;
+      const rows = [
+        ['Order ID', toPdfText(order.order_code), 'courier', ...GOLD],
+        ['Attendee', toPdfText(order.buyer_name), 'helvetica', ...INK],
+        ['Session', toPdfText(`Session ${order.session} - ${s.time}`), 'helvetica', ...INK],
+        ['Ticket', toPdfText(`${TIER_LABELS[order.tier] || order.tier}${order.quantity > 1 ? ` (${order.quantity} persons)` : ''}`), 'helvetica', ...INK],
+        ['Food', toPdfText(s.food), 'helvetica', ...INK],
+        ['Date', '16 November 2026', 'helvetica', ...INK],
+        ['Venue', 'Shilpakala Vedika, Hyderabad', 'helvetica', ...INK],
+      ];
+
+      let y = qrY + QR_SIZE + 20;
+      doc.setDrawColor(226, 226, 226);
+      doc.setLineWidth(0.3);
+      doc.line(M, y, PAGE_W - M, y);
+      y += 6;
+
+      const labelW = 32;
+      const valueX = PAGE_W - M;
+      for (const [label, value, font, r, g, b] of rows) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...MUTED);
+        doc.text(toPdfText(label), M, y);
+
+        doc.setFont(font, 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(r, g, b);
+        const max = doc.getTextWidth(value);
+        let shown = value;
+        const avail = PAGE_W - M * 2 - labelW;
+        if (max > avail) {
+          while (shown.length > 3 && doc.getTextWidth(`${shown}...`) > avail) shown = shown.slice(0, -1);
+          shown = `${shown}...`;
+        }
+        doc.text(shown, valueX, y, { align: 'right' });
+
+        y += 4;
+        doc.setDrawColor(243, 243, 243);
+        doc.line(M, y - 2.5, PAGE_W - M, y - 2.5);
+        y += 4;
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(...MUTED);
+      doc.text('Organised by Pracharam Media. Please present this pass at the entry gate.', PAGE_W / 2, PAGE_H - 12, { align: 'center' });
+      doc.setTextColor(180, 0, 0);
+      doc.text('This pass admits one person per ticket. Re-entry will not be permitted.', PAGE_W / 2, PAGE_H - 7, { align: 'center' });
+
+      doc.save(`${toPdfText(order.order_code) || 'Telugu-Icon-Ticket'}.pdf`);
+    } catch {
+      setError('Could not generate the PDF. Please use Print Ticket instead.');
+    } finally {
+      setPdfBusy(false);
     }
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(...MUTED);
-    doc.text('Organised by Pracharam Media. Please present this pass at the entry gate.', PAGE_W / 2, PAGE_H - 12, { align: 'center' });
-    doc.setTextColor(180, 0, 0);
-    doc.text('This pass admits one person per ticket. Re-entry will not be permitted.', PAGE_W / 2, PAGE_H - 7, { align: 'center' });
-
-    doc.save(`${toPdfText(order.order_code) || 'Telugu-Icon-Ticket'}.pdf`);
-  } catch {
-    setError('Could not generate the PDF. Please use Print Ticket instead.');
-  } finally {
-    setPdfBusy(false);
-  }
-};
+  };
+  ========================================================================= */
 
   return (
     <PageTransition>
@@ -238,7 +244,9 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
         </div>
       </section>
 
-      {/* Progress steps */}
+      {/* =========================================================================
+          PROGRESS BAR (Commented out — direct booking button replaces multi-step form)
+          =========================================================================
       {step < 4 && (
         <div className="bg-ink-900 border-b border-white/5 sticky top-16 lg:top-20 z-10">
           <div className="max-w-3xl mx-auto px-4 py-3">
@@ -262,41 +270,51 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
           </div>
         </div>
       )}
+      ========================================================================= */}
 
-      <section className="py-8 sm:py-10 bg-ink-900 min-h-[60vh]">
+      <section className="py-8 sm:py-12 bg-ink-900 min-h-[50vh]">
         <div className="max-w-3xl mx-auto px-4">
+          <div className="space-y-6">
+            <div className="text-center sm:text-left">
+              <h2 className="font-display text-xl sm:text-2xl font-bold gold-text mb-2">Select Session &amp; Pass</h2>
+              <p className="text-white/50 text-xs sm:text-sm">Choose your preferred session and continue to complete your booking on our official ticketing partner portal.</p>
+            </div>
 
-          {/* STEP 0 — Select Session */}
-          {step === 0 && (
+            {/* Session Cards */}
             <div className="space-y-4">
-              <h2 className="font-display text-xl sm:text-2xl font-bold gold-text mb-4 sm:mb-6">Choose Your Session</h2>
               {[1, 2].map((s) => {
                 const info = SESSION_LABELS[s];
-                const avail = availTickets(s);
+                const sessionTickets = ticketsForSession(s);
                 return (
                   <motion.div
                     key={s}
                     whileHover={{ scale: 1.01 }}
-                    onClick={() => { setSelectedSession(s); setSelectedTicket(null); }}
-                    className={`glass-card p-4 sm:p-6 cursor-pointer transition-all duration-300 ${
+                    onClick={() => setSelectedSession(s)}
+                    className={`glass-card p-5 sm:p-6 cursor-pointer transition-all duration-300 ${
                       selectedSession === s ? 'border-champagne-500/60 bg-champagne-500/5' : 'hover:border-champagne-500/30'
                     }`}
                   >
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1">
                         <div className="text-3xl mb-3">{info.icon}</div>
                         <h3 className="font-display text-xl font-bold text-white mb-1">{info.label}</h3>
                         <p className="text-champagne-400 text-sm font-semibold mb-2">{info.time}</p>
-                        <p className="text-white/50 text-sm">{info.food} Included</p>
-                        <div className="mt-3 flex gap-2 flex-wrap">
-                          {ticketsForSession(s).map((t) => {
-                            const ac = AVAIL_CONFIG[t.availability];
-                            return (
-                              <span key={t.id} className={`text-xs px-2 py-0.5 rounded-full border ${ac.cls}`}>
-                                {TIER_LABELS[t.tier]} {t.price_display} — {ac.label}
-                              </span>
-                            );
-                          })}
+                        <p className="text-white/50 text-sm mb-3">{info.food} Included</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {sessionTickets.length > 0 ? (
+                            sessionTickets.map((t) => {
+                              const ac = AVAIL_CONFIG[t.availability] || AVAIL_CONFIG.available;
+                              return (
+                                <span key={t.id} className={`text-xs px-2.5 py-1 rounded-full border ${ac.cls}`}>
+                                  {TIER_LABELS[t.tier] || t.tier} {t.price_display} — {ac.label}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className="text-xs px-2.5 py-1 rounded-full border bg-emerald-900/40 text-emerald-300 border-emerald-500/40">
+                              Passes Available
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 ${
@@ -308,17 +326,31 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
                   </motion.div>
                 );
               })}
-              <button
-                disabled={!selectedSession}
-                onClick={() => setStep(1)}
-                className="btn-gold w-full mt-4 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Continue →
-              </button>
             </div>
-          )}
 
-          {/* STEP 1 — Select Ticket */}
+            {/* Direct Book Button — redirects to FunZippy link */}
+            <div className="pt-2">
+              <a
+                href={EXTERNAL_BOOKING_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-gold w-full text-center py-4 text-base sm:text-lg font-bold flex items-center justify-center gap-2 group shadow-lg shadow-champagne-500/20"
+              >
+                <span>Book Tickets on FunZippy</span>
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </a>
+              <div className="mt-3 flex items-center justify-center gap-2 text-white/40 text-xs">
+                <span>🔒 Secure checkout powered by FunZippy</span>
+                <span>·</span>
+                <span>Instant confirmation</span>
+              </div>
+            </div>
+          </div>
+
+          {/* =========================================================================
+              ORIGINAL MULTI-STEP FORM & TICKET DISPLAY (Commented out)
+              =========================================================================
+          {/* STEP 1 — Select Ticket (Commented out)
           {step === 1 && (
             <div className="space-y-4">
               <button onClick={() => setStep(0)} className="text-white/40 hover:text-white text-sm flex items-center gap-1 mb-4">
@@ -376,7 +408,7 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
             </div>
           )}
 
-          {/* STEP 2 — Customer Details */}
+          {/* STEP 2 — Customer Details (Commented out)
           {step === 2 && (
             <div>
               <button onClick={() => setStep(1)} className="text-white/40 hover:text-white text-sm flex items-center gap-1 mb-4">← Back</button>
@@ -430,7 +462,7 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
             </div>
           )}
 
-          {/* STEP 3 — Confirm & Policy */}
+          {/* STEP 3 — Confirm & Policy (Commented out)
           {step === 3 && (
             <div>
               <button onClick={() => setStep(2)} className="text-white/40 hover:text-white text-sm flex items-center gap-1 mb-4">← Back</button>
@@ -450,7 +482,6 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
                 </div>
               </div>
 
-              {/* Non-Refundable Policy — MUST be shown before payment per spec */}
               <div className="glass-card p-5 mb-4 border-amber-500/30 bg-amber-900/10">
                 <h3 className="text-amber-300 font-semibold text-sm mb-2">⚠️ Ticket Policy — Please Read</h3>
                 <p className="text-white/60 text-xs leading-relaxed">
@@ -483,7 +514,7 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
             </div>
           )}
 
-          {/* STEP 4 — Digital Ticket */}
+          {/* STEP 4 — Digital Ticket (Commented out)
           {step === 4 && order && (
             <div className="text-center">
               <div className="text-6xl mb-4">🎟️</div>
@@ -495,9 +526,6 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
                   <p className="text-champagne-400 text-sm">Digital &amp; Influencer Awards 2026</p>
                 </div>
                 <div className="bg-white rounded-xl p-4 flex items-center justify-center mb-5">
-                  {/* Real, locally-generated QR. It encodes the raw qr_token so
-                      POST /api/tickets/verify-entry works; linkify is off because
-                      a token is not a URL. */}
                   <QrBlock
                     value={order.qr_token}
                     size={200}
@@ -516,7 +544,7 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
                   <div className="flex justify-between"><span className="text-white/50">Venue</span><span className="text-white">Shilpakala Vedika, Hyderabad</span></div>
                 </div>
               </div>
-<div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button onClick={downloadTicketPdf} disabled={pdfBusy} className="btn-gold disabled:opacity-40 disabled:cursor-not-allowed">
                   {pdfBusy ? 'Generating PDF...' : '📄 Download Ticket (PDF)'}
                 </button>
@@ -525,6 +553,7 @@ const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compr
               </div>
             </div>
           )}
+          ========================================================================= */}
         </div>
       </section>
 
