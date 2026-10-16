@@ -88,6 +88,7 @@ router.get('/:id/sponsors', async (req, res) => {
 
     if (!resolvedId) return res.status(404).json({ message: 'Category not found' });
 
+    // Fetch category-mapped sponsors
     let [rows] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
               s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
@@ -98,26 +99,48 @@ router.get('/:id/sponsors', async (req, res) => {
       [resolvedId]
     );
 
-    if (!rows.length) {
-      const [globalSpons] = await pool.query(
-        `SELECT NULL AS association_id,
-                CASE
-                  WHEN tier = 'title_partner' THEN 'Title Partner'
-                  WHEN tier = 'powered_by' THEN 'Powered By'
-                  WHEN tier = 'co_powered_by' THEN 'Co-Powered By'
-                  ELSE 'Official Partner'
-                END AS role,
-                sort_order AS display_order,
-                id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
-           FROM sponsors
-          WHERE is_active = 1
-          ORDER BY sort_order ASC, id ASC
-          LIMIT 2`
-      );
-      rows = globalSpons;
+    // Fetch all active global sponsors (Title Partner, Powered By, Co-Powered By, etc.)
+    const [globalSpons] = await pool.query(
+      `SELECT NULL AS association_id,
+              CASE
+                WHEN tier = 'title_partner' THEN 'Title Partner'
+                WHEN tier = 'powered_by' THEN 'Powered By'
+                WHEN tier = 'co_powered_by' THEN 'Co-Powered By'
+                ELSE 'Official Partner'
+              END AS role,
+              sort_order AS display_order,
+              id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
+         FROM sponsors
+        WHERE is_active = 1
+        ORDER BY CASE tier
+          WHEN 'title_partner' THEN 1
+          WHEN 'powered_by' THEN 2
+          WHEN 'co_powered_by' THEN 3
+          ELSE 4
+        END ASC, sort_order ASC, id ASC`
+    );
+
+    // Merge: include all category sponsors + all global sponsors without duplicate sponsor IDs
+    const combined = [...rows];
+    for (const gs of globalSpons) {
+      const exists = combined.some((r) => (r.sponsor_id || r.id) === gs.id);
+      if (!exists) {
+        combined.push(gs);
+      }
     }
 
-    res.json(rows);
+    // Sort by tier precedence: Title Partner > Powered By > Co-Powered By > Category Partner
+    combined.sort((a, b) => {
+      const tierRank = (t) => {
+        if (t === 'title_partner') return 1;
+        if (t === 'powered_by') return 2;
+        if (t === 'co_powered_by') return 3;
+        return 4;
+      };
+      return tierRank(a.tier) - tierRank(b.tier) || (a.sort_order || 0) - (b.sort_order || 0);
+    });
+
+    res.json(combined);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

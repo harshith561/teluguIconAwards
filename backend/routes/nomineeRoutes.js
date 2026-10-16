@@ -105,25 +105,48 @@ router.get('/:id/poster-data', async (req, res) => {
       [nominee.category_id]
     );
 
-    // If no category-specific sponsor mapped, fall back to global active sponsors (e.g. Major Sponsor)
-    if (!sponsors.length) {
-      const [globalSpons] = await pool.query(
-        `SELECT NULL AS association_id,
-                CASE
-                  WHEN tier = 'title_partner' THEN 'Title Partner'
-                  WHEN tier = 'powered_by' THEN 'Powered By'
-                  WHEN tier = 'co_powered_by' THEN 'Co-Powered By'
-                  ELSE 'Official Partner'
-                END AS role,
-                sort_order AS display_order,
-                id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
-           FROM sponsors
-          WHERE is_active = 1
-          ORDER BY sort_order ASC, id ASC
-          LIMIT 2`
-      );
-      sponsors = globalSpons;
+    // Fetch all active global sponsors (Title Partner, Powered By, Co-Powered By, etc.)
+    const [globalSpons] = await pool.query(
+      `SELECT NULL AS association_id,
+              CASE
+                WHEN tier = 'title_partner' THEN 'Title Partner'
+                WHEN tier = 'powered_by' THEN 'Powered By'
+                WHEN tier = 'co_powered_by' THEN 'Co-Powered By'
+                ELSE 'Official Partner'
+              END AS role,
+              sort_order AS display_order,
+              id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
+         FROM sponsors
+        WHERE is_active = 1
+        ORDER BY CASE tier
+          WHEN 'title_partner' THEN 1
+          WHEN 'powered_by' THEN 2
+          WHEN 'co_powered_by' THEN 3
+          ELSE 4
+        END ASC, sort_order ASC, id ASC`
+    );
+
+    // Merge: include all category sponsors + all global sponsors without duplicate sponsor IDs
+    const combinedSpons = [...sponsors];
+    for (const gs of globalSpons) {
+      const exists = combinedSpons.some((r) => (r.sponsor_id || r.id) === gs.id);
+      if (!exists) {
+        combinedSpons.push(gs);
+      }
     }
+
+    // Sort by tier precedence: Title Partner > Powered By > Co-Powered By > Category Partner
+    combinedSpons.sort((a, b) => {
+      const tierRank = (t) => {
+        if (t === 'title_partner') return 1;
+        if (t === 'powered_by') return 2;
+        if (t === 'co_powered_by') return 3;
+        return 4;
+      };
+      return tierRank(a.tier) - tierRank(b.tier) || (a.sort_order || 0) - (b.sort_order || 0);
+    });
+
+    sponsors = combinedSpons;
 
     const warnings = [];
     if (!nominee.photo_url) {

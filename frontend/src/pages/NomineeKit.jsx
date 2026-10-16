@@ -382,7 +382,15 @@ export default function NomineeKit() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-white text-xs font-semibold truncate">{sp.name}</p>
-                          <p className="text-white/40 text-[10px]">{sp.role || 'Category Partner'}</p>
+                          <p className="text-white/40 text-[10px]">
+                            {sp.tier === 'title_partner'
+                              ? 'Title Partner'
+                              : sp.tier === 'powered_by'
+                              ? 'Powered By'
+                              : sp.tier === 'co_powered_by'
+                              ? 'Co-Powered By'
+                              : sp.role || 'Category Partner'}
+                          </p>
                         </div>
                       </div>
                     ))}

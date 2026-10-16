@@ -103,7 +103,13 @@ export default function CategoryDetail() {
                         </div>
                         <div>
                           <div className="text-[10px] sm:text-xs text-champagne-400 uppercase tracking-wider font-semibold">
-                            {sp.role || 'Official Category Partner'}
+                            {sp.tier === 'title_partner'
+                              ? 'Title Partner'
+                              : sp.tier === 'powered_by'
+                              ? 'Powered By'
+                              : sp.tier === 'co_powered_by'
+                              ? 'Co-Powered By'
+                              : sp.role || 'Official Category Partner'}
                           </div>
                           <div className="text-xs sm:text-sm font-bold text-white truncate max-w-[220px]">
                             {sp.name}

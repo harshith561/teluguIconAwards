@@ -126,6 +126,15 @@ export default function NomineeProfile() {
   const voteRef = useRef(null);
   const formRef = useRef(null);
 
+  const getSponsorBadgeRole = (sp) => {
+    if (sp.tier === 'title_partner') return 'Title Partner';
+    if (sp.tier === 'powered_by') return 'Powered By';
+    if (sp.tier === 'co_powered_by') return 'Co-Powered By';
+    if (sp.role && sp.role !== 'Category Partner') return sp.role;
+    if (sp.tier) return sp.tier.replace(/_/g, ' ');
+    return sp.role || 'Category Partner';
+  };
+
   useNomineeMetaTags(nominee);
 
   useEffect(() => {
@@ -135,12 +144,54 @@ export default function NomineeProfile() {
     api.get(`/nominees/${id}`).then(async (data) => {
       if (data && data.id) {
         setNominee(data);
-        if (data.category_id) {
+        try {
+          // 1. Fetch category-specific sponsors
+          let catSpons = [];
+          if (data.category_id) {
+            try {
+              const res = await api.get(`/categories/${data.category_id}/sponsors`);
+              if (Array.isArray(res)) catSpons = res;
+            } catch (_) {}
+          }
+
+          // 2. Fetch global brand partners (e.g. Title Partner, Co-Powered By)
+          let globalSpons = [];
           try {
-            const spons = await api.get(`/categories/${data.category_id}/sponsors`);
-            if (Array.isArray(spons)) setCategorySponsors(spons);
+            const globalRes = await api.get('/sponsors');
+            if (Array.isArray(globalRes)) globalSpons = globalRes;
           } catch (_) {}
-        }
+
+          // Combine both without duplicates so every active sponsor is visible
+          const combined = [...catSpons];
+          for (const gs of globalSpons) {
+            const alreadyExists = combined.some((s) => (s.sponsor_id || s.id) === gs.id);
+            if (!alreadyExists) {
+              combined.push({
+                ...gs,
+                role: gs.role || (
+                  gs.tier === 'title_partner' ? 'Title Partner' :
+                  gs.tier === 'powered_by' ? 'Powered By' :
+                  gs.tier === 'co_powered_by' ? 'Co-Powered By' :
+                  'Brand Partner'
+                ),
+              });
+            }
+          }
+
+          // Sort by tier precedence: Title Partner > Powered By > Co-Powered By > Category Partner
+          combined.sort((a, b) => {
+            const rank = (tier, role) => {
+              if (tier === 'title_partner' || role === 'Title Partner') return 1;
+              if (tier === 'powered_by' || role === 'Powered By') return 2;
+              if (tier === 'co_powered_by' || role === 'Co-Powered By') return 3;
+              if (role === 'Category Partner') return 4;
+              return 5;
+            };
+            return rank(a.tier, a.role) - rank(b.tier, b.role) || (a.sort_order || 0) - (b.sort_order || 0);
+          });
+
+          setCategorySponsors(combined);
+        } catch (_) {}
       } else {
         setNotFound(true);
       }
@@ -267,7 +318,9 @@ export default function NomineeProfile() {
                   loading="eager"
                 />
               ) : (
-                <img src="/brand/trophy-cup.svg" alt="Trophy Cup" className="w-20 h-20 sm:w-24 sm:h-24 object-contain" />
+                <div className="w-full h-full rounded-xl bg-champagne-500/10 flex items-center justify-center text-3xl font-bold text-champagne-400 font-display">
+                  {nominee.full_name ? nominee.full_name[0] : 'T'}
+                </div>
               )}
             </div>
             <div className="absolute inset-0 rounded-2xl ring-2 ring-champagne-400/20 blur-sm pointer-events-none" />
@@ -283,26 +336,28 @@ export default function NomineeProfile() {
 
           {/* Category Sponsor Accreditation */}
           {categorySponsors.length > 0 && (
-            <div className="flex items-center justify-center gap-2 my-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-champagne-500/30 text-xs shadow-sm">
-                <div className="w-5 h-5 rounded-md bg-black/40 p-0.5 border border-champagne-500/20 shrink-0 flex items-center justify-center">
-                  {categorySponsors[0].logo_url ? (
-                    <img
-                      src={getAssetUrl(categorySponsors[0].logo_url)}
-                      alt={categorySponsors[0].name}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = '/brand/trophy-cup.svg';
-                      }}
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    <img src="/brand/trophy-cup.svg" alt="Trophy Cup" className="w-full h-full object-contain" />
-                  )}
-                </div>
-                <span className="text-white/50 text-[11px] uppercase tracking-wider">{categorySponsors[0].role || 'Category Partner'}:</span>
-                <span className="text-white font-bold text-xs">{categorySponsors[0].name}</span>
-              </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 my-2.5">
+              {categorySponsors.map((sp) => {
+                const badgeRole = getSponsorBadgeRole(sp);
+                return (
+                  <div
+                    key={sp.id || sp.association_id || sp.sponsor_id}
+                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-champagne-500/30 text-xs shadow-sm backdrop-blur-sm"
+                  >
+                    {sp.logo_url && (
+                      <img
+                        src={getAssetUrl(sp.logo_url)}
+                        alt={sp.name}
+                        className="w-4 h-4 object-contain rounded"
+                      />
+                    )}
+                    <span className="text-champagne-400/80 text-[10px] uppercase tracking-wider font-semibold">
+                      {badgeRole}:
+                    </span>
+                    <span className="text-white font-bold text-xs">{sp.name}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 

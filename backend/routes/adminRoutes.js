@@ -734,8 +734,12 @@ router.get('/categories/:id/poster-preview', async (req, res) => {
                 id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
            FROM sponsors
           WHERE is_active = 1
-          ORDER BY sort_order ASC, id ASC
-          LIMIT 2`
+          ORDER BY CASE tier
+            WHEN 'title_partner' THEN 1
+            WHEN 'powered_by' THEN 2
+            WHEN 'co_powered_by' THEN 3
+            ELSE 4
+          END ASC, sort_order ASC, id ASC`
       );
       displaySponsors = globalSpons;
     }
