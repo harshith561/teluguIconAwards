@@ -677,7 +677,7 @@ const drawSponsorsSection = async (ctx, sponsors, cx, startY, maxWidth, S, prima
   ctx.font = `bold ${12.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
   ctx.letterSpacing = `${3 * S}px`;
   const headerText = count > 1
-    ? `OFFICIAL CATEGORY PARTNERS (${count})`
+    ? `OFFICIAL CATEGORY PARTNERS`
     : count === 1
     ? (sponsors[0].role || 'CATEGORY PARTNER').toUpperCase()
     : 'OFFICIAL CATEGORY PARTNER';
