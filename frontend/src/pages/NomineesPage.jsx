@@ -53,39 +53,51 @@ export default function NomineesPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.05 }}
+                  className="glass-card overflow-hidden group hover:border-champagne-500/40 transition-all duration-300 flex flex-col justify-between"
                 >
-                  <Link to={`/nominee/${n.slug || n.id}`} className="group block">
-                    <div className="glass-card overflow-hidden group-hover:border-champagne-500/40 transition-all duration-300">
-                      <div className="aspect-[16/10] bg-gradient-to-br from-ink-700 to-burgundy-900 relative overflow-hidden">
-                        {n.photo_url ? (
-                          <img src={getAssetUrl(n.photo_url)} alt={n.full_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-7xl">🏆</div>
-                        )}
-                        {n.featured && (
-                          <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-champagne-500 text-ink-900 text-xs font-bold">
-                            ⭐ Featured
-                          </span>
-                        )}
+                  <div>
+                    <Link to={`/nominee/${n.slug || n.id}`} className="block relative aspect-[16/10] bg-gradient-to-br from-ink-700 to-burgundy-900 overflow-hidden">
+                      {n.photo_url ? (
+                        <img src={getAssetUrl(n.photo_url)} alt={n.full_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-7xl">🏆</div>
+                      )}
+                      {n.featured && (
+                        <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-champagne-500 text-ink-900 text-xs font-bold shadow-md">
+                          ⭐ Featured
+                        </span>
+                      )}
+                    </Link>
+                    <div className="p-5 pb-3">
+                      <div className="flex items-baseline justify-between mb-1">
+                        <Link to={`/nominee/${n.slug || n.id}`} className="font-semibold text-white group-hover:text-champagne-400 transition-colors truncate">
+                          {n.full_name}
+                        </Link>
+                        <span className="text-white/30 text-xs ml-2 shrink-0">{n.nominee_code}</span>
                       </div>
-                      <div className="p-5">
-                        <div className="flex items-baseline justify-between mb-1">
-                          <h3 className="font-semibold text-white group-hover:text-champagne-400 transition-colors truncate">{n.full_name}</h3>
-                          <span className="text-white/30 text-xs ml-2 shrink-0">{n.nominee_code}</span>
-                        </div>
-                        <p className="text-white/40 text-sm mb-3">{n.category_name}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1 text-champagne-400 text-sm">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5-5 5M6 12h12" />
-                            </svg>
-                            View Profile
-                          </span>
-                          <span className="text-white/40 text-xs">{n.vote_count.toLocaleString()} votes</span>
-                        </div>
+                      <p className="text-white/40 text-sm mb-3">{n.category_name}</p>
+                      <div className="flex items-center justify-between text-xs text-white/40">
+                        <span>Official Nominee</span>
+                        <span className="text-champagne-400/90 font-medium">{n.vote_count.toLocaleString()} votes</span>
                       </div>
                     </div>
-                  </Link>
+                  </div>
+
+                  <div className="p-5 pt-0 mt-2 flex items-center gap-2">
+                    <Link
+                      to={`/nominee-kit?nominee=${n.slug || n.id}`}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-champagne-500/15 to-amber-500/15 hover:from-champagne-500/25 hover:to-amber-500/25 text-champagne-300 hover:text-white border border-champagne-500/30 text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                      title="View & Download official campaign poster & story"
+                    >
+                      <span>🖼️</span> Download Poster
+                    </Link>
+                    <Link
+                      to={`/nominee/${n.slug || n.id}`}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-champagne-500 text-ink-900 hover:bg-champagne-400 text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5 shadow-gold"
+                    >
+                      <span>🗳️</span> Vote Now
+                    </Link>
+                  </div>
                 </motion.div>
               ))}
             </div>

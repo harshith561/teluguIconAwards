@@ -71,14 +71,51 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Nominee photos are drawn into a <canvas> on the client to build the campaign
-// poster. Canvas taints (and silently drops) cross-origin images unless the
-// response carries CORS headers, so uploads are served with permissive CORS.
-app.use('/uploads', express.static(uploadDir, {
-  cors: true,
-  crossOriginResourcePolicy: 'cross-origin',
+// Nominee photos and sponsor logos are drawn into <canvas> on client to build posters.
+// Express static requires explicit headers for cross-origin canvas loading.
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+}, express.static(uploadDir, {
   maxAge: '7d',
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
 }));
+
+// Safe image proxy endpoint for external sponsor logos that lack CORS headers
+app.get('/api/proxy-image', async (req, res) => {
+  try {
+    const rawUrl = req.query.url;
+    if (!rawUrl || typeof rawUrl !== 'string') {
+      return res.status(400).send('Missing url parameter');
+    }
+    const parsed = new URL(rawUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return res.status(400).send('Invalid protocol');
+    }
+
+    const https = parsed.protocol === 'https:' ? require('https') : require('http');
+    https.get(rawUrl, (upstreamRes) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Content-Type', upstreamRes.headers['content-type'] || 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      upstreamRes.pipe(res);
+    }).on('error', () => {
+      res.status(502).send('Failed to fetch image');
+    });
+  } catch (err) {
+    res.status(400).send('Invalid URL');
+  }
+});
 
 const authRoutes = require('./routes/authRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');

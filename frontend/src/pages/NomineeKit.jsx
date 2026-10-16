@@ -384,11 +384,6 @@ export default function NomineeKit() {
                           <p className="text-white text-xs font-semibold truncate">{sp.name}</p>
                           <p className="text-white/40 text-[10px]">{sp.role || 'Category Partner'}</p>
                         </div>
-                        {sp.website_url && (
-                          <a href={sp.website_url} target="_blank" rel="noopener noreferrer" className="text-champagne-400 text-xs hover:underline">
-                            ↗ Visit
-                          </a>
-                        )}
                       </div>
                     ))}
                     <p className="text-[10px] text-white/40 mt-2">

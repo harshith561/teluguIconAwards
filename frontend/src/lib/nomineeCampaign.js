@@ -11,14 +11,20 @@ import { API_BASE } from '../api';
 // Nothing here is hardcoded to a domain that does not resolve, so a share link
 // or QR generated on any host still opens somewhere real.
 const DEPLOYED_SITE_URL = 'https://awards-kab6.vercel.app';
+const CANONICAL_SITE_URL = 'https://teluguiconawards.in';
 
 export const getSiteUrl = () => {
   const configured = (import.meta.env.VITE_SITE_URL || '').trim().replace(/\/+$/, '');
   if (configured) return configured;
   if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    // When running locally in dev mode, use canonical domain so posters,
+    // QR codes, and share links work properly when scanned on mobile devices
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return CANONICAL_SITE_URL;
+    }
     return window.location.origin;
   }
-  return DEPLOYED_SITE_URL;
+  return CANONICAL_SITE_URL;
 };
 
 // One canonical public URL per nominee. The numeric id form is treated as an

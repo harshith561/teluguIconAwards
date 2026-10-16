@@ -11,6 +11,7 @@ export default function CategoryDetail() {
   const [nominees, setNominees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [votingNominee, setVotingNominee] = useState(null);
+  const [categorySponsors, setCategorySponsors] = useState([]);
 
   useEffect(() => {
     setLoading(true);
@@ -18,9 +19,15 @@ export default function CategoryDetail() {
     Promise.all([
       api.get(`/categories/${slug}`).catch(() => null),
       api.get(`/nominees?category=${slug}`).catch(() => []),
-    ]).then(([catData, nomData]) => {
+    ]).then(async ([catData, nomData]) => {
       if (catData && !catData.message) {
         setCategory(catData);
+        if (catData.id) {
+          try {
+            const spons = await api.get(`/categories/${catData.id}/sponsors`);
+            if (Array.isArray(spons)) setCategorySponsors(spons);
+          } catch (_) {}
+        }
       }
       if (Array.isArray(nomData)) {
         setNominees(nomData);
@@ -76,19 +83,49 @@ export default function CategoryDetail() {
               </p>
 
               {/* Category Sponsor Strip */}
-              <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-champagne-500/10 border border-champagne-500/30 flex items-center justify-center text-champagne-400 text-base sm:text-lg">
-                    ⭐
+              <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white/5 border border-champagne-500/20 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+                {categorySponsors.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-4">
+                    {categorySponsors.map((sp) => (
+                      <div key={sp.id || sp.association_id} className="flex items-center gap-3">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/50 border border-champagne-500/30 p-1 flex items-center justify-center shrink-0 shadow-sm">
+                          {sp.logo_url ? (
+                            <img
+                              src={getAssetUrl(sp.logo_url)}
+                              alt={sp.name}
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <div className="w-full h-full rounded-lg bg-champagne-500/10 flex items-center justify-center text-xs font-bold text-champagne-400">
+                              {sp.name ? sp.name[0] : 'S'}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-[10px] sm:text-xs text-champagne-400 uppercase tracking-wider font-semibold">
+                            {sp.role || 'Official Category Partner'}
+                          </div>
+                          <div className="text-xs sm:text-sm font-bold text-white truncate max-w-[220px]">
+                            {sp.name}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <div className="text-[10px] sm:text-xs text-white/40 uppercase tracking-wider font-semibold">Category Partner</div>
-                    <div className="text-xs sm:text-sm font-bold text-white">Presented by Official Telugu Icon Partner</div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/50 border border-champagne-500/30 flex items-center justify-center shrink-0 text-champagne-400 font-bold text-xs">
+                      TI
+                    </div>
+                    <div>
+                      <div className="text-[10px] sm:text-xs text-champagne-400 uppercase tracking-wider font-semibold">Official Category Partner</div>
+                      <div className="text-xs sm:text-sm font-bold text-white">Presented by Official Telugu Icon Partner</div>
+                    </div>
                   </div>
-                </div>
+                )}
                 <Link
                   to="/sponsors#partner-form"
-                  className="px-4 py-2 rounded-xl bg-champagne-500/10 hover:bg-champagne-500/20 text-champagne-400 border border-champagne-500/30 text-xs font-semibold transition-all"
+                  className="px-4 py-2 rounded-xl bg-champagne-500/10 hover:bg-champagne-500/20 text-champagne-400 border border-champagne-500/30 text-xs font-semibold transition-all shrink-0"
                 >
                   Sponsor this Category →
                 </Link>
@@ -174,12 +211,21 @@ export default function CategoryDetail() {
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => setVotingNominee(nom)}
-                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-champagne-400 to-burgundy-600 text-ink-900 font-bold text-xs hover:opacity-95 shadow-gold transition-all"
-                        >
-                          Vote Now
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to={`/nominee-kit?nominee=${nom.slug || nom.id}`}
+                            className="px-3 py-2 rounded-xl bg-champagne-500/10 hover:bg-champagne-500/20 border border-champagne-500/30 text-champagne-300 font-semibold text-xs transition-all flex items-center gap-1 shadow-sm"
+                            title="View & Download Official Poster"
+                          >
+                            <span>🖼️</span> Poster
+                          </Link>
+                          <button
+                            onClick={() => setVotingNominee(nom)}
+                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-champagne-400 to-burgundy-600 text-ink-900 font-bold text-xs hover:opacity-95 shadow-gold transition-all"
+                          >
+                            Vote Now
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   ))}

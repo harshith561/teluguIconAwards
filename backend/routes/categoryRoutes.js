@@ -88,15 +88,35 @@ router.get('/:id/sponsors', async (req, res) => {
 
     if (!resolvedId) return res.status(404).json({ message: 'Category not found' });
 
-    const [rows] = await pool.query(
+    let [rows] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
-              s.id, s.name, s.tier, s.logo_url, s.website_url, s.tagline
+              s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
          FROM category_sponsors cs
          JOIN sponsors s ON cs.sponsor_id = s.id
-        WHERE cs.category_id = ? AND s.is_active = 1
+        WHERE cs.category_id = ?
         ORDER BY cs.sort_order ASC, s.sort_order ASC, s.id ASC`,
       [resolvedId]
     );
+
+    if (!rows.length) {
+      const [globalSpons] = await pool.query(
+        `SELECT NULL AS association_id,
+                CASE
+                  WHEN tier = 'title_partner' THEN 'Title Partner'
+                  WHEN tier = 'powered_by' THEN 'Powered By'
+                  WHEN tier = 'co_powered_by' THEN 'Co-Powered By'
+                  ELSE 'Official Partner'
+                END AS role,
+                sort_order AS display_order,
+                id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
+           FROM sponsors
+          WHERE is_active = 1
+          ORDER BY sort_order ASC, id ASC
+          LIMIT 2`
+      );
+      rows = globalSpons;
+    }
+
     res.json(rows);
   } catch (error) {
     res.status(500).json({ message: error.message });

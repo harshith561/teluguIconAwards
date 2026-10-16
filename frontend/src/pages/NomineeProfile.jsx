@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useSearchParams, Navigate } from 'react-router-dom';
+import { useParams, useSearchParams, Navigate, Link } from 'react-router-dom';
 import PageTransition from '../components/PageTransition';
 import OtpVote from '../components/OtpVote';
 import QrBlock from '../components/QrBlock';
@@ -118,6 +118,7 @@ export default function NomineeProfile() {
   const isQrScan = searchParams.get('src') === 'qr';
 
   const [nominee, setNominee] = useState(null);
+  const [categorySponsors, setCategorySponsors] = useState([]);
   const [notFound, setNotFound] = useState(false);
   const [voted, setVoted] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
@@ -129,10 +130,20 @@ export default function NomineeProfile() {
 
   useEffect(() => {
     setNominee(null);
+    setCategorySponsors([]);
     setNotFound(false);
-    api.get(`/nominees/${id}`).then((data) => {
-      if (data && data.id) setNominee(data);
-      else setNotFound(true);
+    api.get(`/nominees/${id}`).then(async (data) => {
+      if (data && data.id) {
+        setNominee(data);
+        if (data.category_id) {
+          try {
+            const spons = await api.get(`/categories/${data.category_id}/sponsors`);
+            if (Array.isArray(spons)) setCategorySponsors(spons);
+          } catch (_) {}
+        }
+      } else {
+        setNotFound(true);
+      }
     }).catch(() => setNotFound(true));
   }, [id]);
 
@@ -245,18 +256,18 @@ export default function NomineeProfile() {
             </span>
           </div>
 
-          {/* Photo */}
-          <div className="relative mb-4">
-            <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden border-2 border-champagne-500/60 shadow-2xl shadow-champagne-500/20 bg-gradient-to-br from-ink-700 to-burgundy-900 flex items-center justify-center mx-auto">
+          {/* Photo with generous margin bottom */}
+          <div className="relative mb-6 sm:mb-7">
+            <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden border-2 border-champagne-500/60 shadow-2xl shadow-champagne-500/20 bg-gradient-to-br from-ink-700 to-burgundy-900 flex items-center justify-center mx-auto p-2">
               {nominee.photo_url ? (
                 <img
                   src={getAssetUrl(nominee.photo_url)}
                   alt={nominee.full_name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover rounded-xl"
                   loading="eager"
                 />
               ) : (
-                <span className="text-6xl">🏆</span>
+                <img src="/brand/trophy-cup.svg" alt="Trophy Cup" className="w-20 h-20 sm:w-24 sm:h-24 object-contain" />
               )}
             </div>
             <div className="absolute inset-0 rounded-2xl ring-2 ring-champagne-400/20 blur-sm pointer-events-none" />
@@ -269,6 +280,32 @@ export default function NomineeProfile() {
           <p className="text-champagne-400 text-sm sm:text-base font-semibold text-center mb-1">
             Nominated for: <span className="text-white">{nominee.category_name}</span>
           </p>
+
+          {/* Category Sponsor Accreditation */}
+          {categorySponsors.length > 0 && (
+            <div className="flex items-center justify-center gap-2 my-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-champagne-500/30 text-xs shadow-sm">
+                <div className="w-5 h-5 rounded-md bg-black/40 p-0.5 border border-champagne-500/20 shrink-0 flex items-center justify-center">
+                  {categorySponsors[0].logo_url ? (
+                    <img
+                      src={getAssetUrl(categorySponsors[0].logo_url)}
+                      alt={categorySponsors[0].name}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/brand/trophy-cup.svg';
+                      }}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <img src="/brand/trophy-cup.svg" alt="Trophy Cup" className="w-full h-full object-contain" />
+                  )}
+                </div>
+                <span className="text-white/50 text-[11px] uppercase tracking-wider">{categorySponsors[0].role || 'Category Partner'}:</span>
+                <span className="text-white font-bold text-xs">{categorySponsors[0].name}</span>
+              </div>
+            </div>
+          )}
+
           {nominee.social_handle && (
             <p className="text-white/40 text-xs text-center mb-3">📱 {nominee.social_handle}</p>
           )}
@@ -319,6 +356,15 @@ export default function NomineeProfile() {
               Scan the QR, share the link, and help {nominee.full_name} win.
             </p>
           )}
+
+          <div className="mt-2 text-center">
+            <Link
+              to={`/nominee-kit?nominee=${nominee.slug || nominee.id}`}
+              className="inline-flex items-center gap-1.5 text-xs text-champagne-300 hover:text-white font-semibold py-1.5 px-3.5 rounded-xl bg-champagne-500/10 hover:bg-champagne-500/20 border border-champagne-500/30 transition-all shadow-sm"
+            >
+              <span>🖼️</span> View &amp; Download Campaign Poster →
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -388,10 +434,16 @@ export default function NomineeProfile() {
                 Print it on posters, stories, reels and prints.
               </p>
               <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                <Link
+                  to={`/nominee-kit?nominee=${nominee.slug || nominee.id}`}
+                  className="btn-gold text-xs !py-2 !px-4 inline-flex items-center gap-1.5 shadow-gold"
+                >
+                  <span>🖼️</span> View &amp; Download Poster
+                </Link>
                 <button
                   onClick={handleQrDownload}
                   disabled={qrDownloading}
-                  className="btn-gold text-xs !py-2 !px-4 disabled:opacity-50"
+                  className="btn-outline text-xs !py-2 !px-4 disabled:opacity-50"
                 >
                   {qrDownloading ? 'Preparing...' : '⬇ Download QR Code'}
                 </button>

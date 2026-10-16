@@ -9,10 +9,11 @@ export const getAssetUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url;
   const origin = API_BASE.endsWith('/api') ? API_BASE.slice(0, -4) : API_BASE;
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
   if (origin && origin !== '/api') {
-    return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+    return `${origin}${cleanPath}`;
   }
-  return url;
+  return cleanPath;
 };
 
 // In-memory response cache for lightning-fast tab navigation

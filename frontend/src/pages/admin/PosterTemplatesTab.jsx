@@ -25,10 +25,13 @@ export default function PosterTemplatesTab() {
   const [themeColor, setThemeColor] = useState('#D4AF37');
   const [badgeText, setBadgeText] = useState('OFFICIAL NOMINEE');
   const [tagline, setTagline] = useState('');
+  const [customTags, setCustomTags] = useState('#TeluguIconAwards2026, #TIA2026');
+  const [previewFormat, setPreviewFormat] = useState('poster');
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   // Category sponsors state
   const [categorySponsors, setCategorySponsors] = useState([]);
+  const [previewFallbackSponsors, setPreviewFallbackSponsors] = useState([]);
   const [allSponsors, setAllSponsors] = useState([]);
   const [selectedSponsorToAdd, setSelectedSponsorToAdd] = useState('');
   const [sponsorRole, setSponsorRole] = useState('Category Partner');
@@ -90,8 +93,13 @@ export default function PosterTemplatesTab() {
           setBadgeText(data.category.poster_badge_text || 'OFFICIAL NOMINEE');
           setTagline(data.category.poster_tagline || '');
         }
-        if (Array.isArray(data.sponsors)) {
+        if (Array.isArray(data.category_sponsors)) {
+          setCategorySponsors(data.category_sponsors);
+        } else if (Array.isArray(data.sponsors)) {
           setCategorySponsors(data.sponsors);
+        }
+        if (Array.isArray(data.sponsors)) {
+          setPreviewFallbackSponsors(data.sponsors);
         }
         if (Array.isArray(data.nominees)) {
           setNominees(data.nominees);
@@ -145,11 +153,16 @@ export default function PosterTemplatesTab() {
         poster_tagline: tagline,
       };
 
+      const parsedTags = customTags.split(',').map((t) => t.trim()).filter(Boolean);
+
+      const activeSponsors = categorySponsors.length > 0 ? categorySponsors : previewFallbackSponsors;
+
       // 2. Render 4:5 Poster
       const posterCanvas = await buildPoster(currentNominee, {
         format: 'poster',
         category: activeCategory,
-        sponsors: categorySponsors,
+        sponsors: activeSponsors,
+        tags: parsedTags,
         qrImage: qrImg,
       });
 
@@ -157,7 +170,8 @@ export default function PosterTemplatesTab() {
       const storyCanvas = await buildPoster(currentNominee, {
         format: 'story',
         category: activeCategory,
-        sponsors: categorySponsors,
+        sponsors: activeSponsors,
+        tags: parsedTags,
         qrImage: qrImg,
       });
 
@@ -175,7 +189,7 @@ export default function PosterTemplatesTab() {
     } catch (_) {
       // Preview render failed silently without console pollution
     }
-  }, [currentNominee, categoryDetails, templateKey, themeColor, badgeText, tagline, categorySponsors]);
+  }, [currentNominee, categoryDetails, templateKey, themeColor, badgeText, tagline, categorySponsors, previewFallbackSponsors, customTags]);
 
   useEffect(() => {
     renderPreview();
@@ -501,6 +515,23 @@ export default function PosterTemplatesTab() {
                 />
               </div>
 
+              {/* Campaign Tags & Hashtags */}
+              <div>
+                <label className="block text-white/70 text-xs font-semibold mb-1">
+                  Campaign Tags &amp; Hashtags (Comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={customTags}
+                  onChange={(e) => setCustomTags(e.target.value)}
+                  placeholder="e.g. #TeluguIconAwards2026, #TIA2026, Creator"
+                  className="input-field text-xs"
+                />
+                <p className="text-white/40 text-[10px] mt-1">
+                  Automatically arranged in neat, non-overlapping pill chips on the poster.
+                </p>
+              </div>
+
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
@@ -552,22 +583,15 @@ export default function PosterTemplatesTab() {
                         <img
                           src={getAssetUrl(sp.logo_url)}
                           alt={sp.name}
-                          className="w-12 h-12 object-contain rounded-lg bg-black/40 p-1 border border-white/10"
+                          className="w-10 h-10 object-contain rounded-lg bg-black/40 p-1 border border-white/10"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-champagne-500/10 border border-champagne-500/20 flex items-center justify-center text-sm font-bold text-champagne-400">
-                          {sp.name[0]}
+                        <div className="w-10 h-10 rounded-lg bg-champagne-500/10 border border-champagne-500/20 flex items-center justify-center text-sm font-bold text-champagne-400">
+                          {sp.name ? sp.name[0] : 'S'}
                         </div>
                       )}
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-white text-xs font-bold truncate">{sp.name}</p>
-                          {!sp.logo_url && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              No Logo
-                            </span>
-                          )}
-                        </div>
+                        <p className="text-white text-xs font-bold truncate">{sp.name}</p>
                         <p className="text-champagne-400 text-[11px] font-semibold">{sp.role || 'Category Partner'}</p>
                         {sp.tier && <p className="text-white/30 text-[10px] uppercase">{sp.tier.replace(/_/g, ' ')}</p>}
                       </div>
@@ -643,7 +667,30 @@ export default function PosterTemplatesTab() {
               <h3 className="text-sm font-bold text-champagne-300 uppercase tracking-wider">
                 Live Poster Preview
               </h3>
-              <span className="text-white/40 text-[11px]">4:5 &amp; 9:16 Canvas</span>
+              <div className="flex items-center gap-1 bg-ink-900/90 p-1 rounded-xl border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setPreviewFormat('poster')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    previewFormat === 'poster'
+                      ? 'bg-champagne-500 text-ink-900 shadow-sm'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  🖼️ 4:5 Poster
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFormat('story')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    previewFormat === 'story'
+                      ? 'bg-champagne-500 text-ink-900 shadow-sm'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  📱 9:16 Story
+                </button>
+              </div>
             </div>
 
             {/* Select Nominee for Preview */}
@@ -712,13 +759,21 @@ export default function PosterTemplatesTab() {
 
             {/* Poster Canvas Preview */}
             <div className="flex justify-center items-center py-2">
-              <div className="relative max-w-[280px] w-full rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40">
-                <canvas ref={posterCanvasRef} className="w-full h-auto block" />
+              <div
+                className={`relative w-full rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40 transition-all ${
+                  previewFormat === 'story' ? 'max-w-[240px]' : 'max-w-[340px]'
+                }`}
+              >
+                <canvas
+                  ref={posterCanvasRef}
+                  className={`w-full h-auto block ${previewFormat === 'poster' ? '' : 'hidden'}`}
+                />
+                <canvas
+                  ref={storyCanvasRef}
+                  className={`w-full h-auto block ${previewFormat === 'story' ? '' : 'hidden'}`}
+                />
               </div>
             </div>
-
-            {/* Hidden canvas for 9:16 story rendering */}
-            <canvas ref={storyCanvasRef} className="hidden" />
 
             {/* Action buttons */}
             <div className="pt-3 border-t border-white/5 grid grid-cols-2 gap-2">

@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
     const extras = await profileColumns();
     const rows = await cached(key, 30, async () => {
       let sql = `SELECT n.id, n.full_name, n.slug, n.bio, n.photo_url, n.social_handle, n.followers_count,
-                        n.featured, n.status, n.nominee_code, n.vote_count,
+                        n.featured, n.status, n.nominee_code, n.vote_count, n.category_id,
                         c.name AS category_name, c.slug AS category_slug${extras.map((c) => `, n.${c}`).join('')}
                  FROM nominees n
                  JOIN categories c ON n.category_id = c.id
@@ -95,15 +95,35 @@ router.get('/:id/poster-data', async (req, res) => {
     const nominee = nominees[0];
 
     // Fetch active sponsors specifically mapped to this category
-    const [sponsors] = await pool.query(
+    let [sponsors] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
-              s.id, s.name, s.tier, s.logo_url, s.website_url, s.tagline
+              s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
          FROM category_sponsors cs
          JOIN sponsors s ON cs.sponsor_id = s.id
-        WHERE cs.category_id = ? AND s.is_active = 1
+        WHERE cs.category_id = ?
         ORDER BY cs.sort_order ASC, s.sort_order ASC, s.id ASC`,
       [nominee.category_id]
     );
+
+    // If no category-specific sponsor mapped, fall back to global active sponsors (e.g. Major Sponsor)
+    if (!sponsors.length) {
+      const [globalSpons] = await pool.query(
+        `SELECT NULL AS association_id,
+                CASE
+                  WHEN tier = 'title_partner' THEN 'Title Partner'
+                  WHEN tier = 'powered_by' THEN 'Powered By'
+                  WHEN tier = 'co_powered_by' THEN 'Co-Powered By'
+                  ELSE 'Official Partner'
+                END AS role,
+                sort_order AS display_order,
+                id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
+           FROM sponsors
+          WHERE is_active = 1
+          ORDER BY sort_order ASC, id ASC
+          LIMIT 2`
+      );
+      sponsors = globalSpons;
+    }
 
     const warnings = [];
     if (!nominee.photo_url) {
@@ -111,7 +131,7 @@ router.get('/:id/poster-data', async (req, res) => {
     }
     sponsors.forEach((sp) => {
       if (!sp.logo_url) {
-        warnings.push(`Sponsor "${sp.name}" has no logo uploaded. Company name will be rendered as text badge.`);
+        warnings.push(`Sponsor "${sp.name}" has no logo uploaded. Golden trophy cup badge will be rendered.`);
       }
     });
 

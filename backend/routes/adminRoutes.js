@@ -584,7 +584,7 @@ router.post('/sponsors', async (req, res) => {
       return res.status(400).json({ message: 'Sponsor name is required' });
     }
     const [result] = await pool.query(
-      'INSERT INTO sponsors (name, tier, logo_url, website_url, tagline, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sponsors (name, tier, logo_url, website_url, tagline, is_active, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?)',
       [name, tier || 'gold', logo_url || null, website_url || null, tagline || null, sort_order || 0]
     );
     res.status(201).json({ message: 'Sponsor created', id: result.insertId });
@@ -620,7 +620,7 @@ router.get('/categories/:id/sponsors', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order, cs.created_at AS associated_at,
-              s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, s.is_active
+              s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
          FROM category_sponsors cs
          JOIN sponsors s ON cs.sponsor_id = s.id
         WHERE cs.category_id = ?
@@ -710,15 +710,35 @@ router.get('/categories/:id/poster-preview', async (req, res) => {
     if (!categories.length) return res.status(404).json({ message: 'Category not found' });
     const category = categories[0];
 
-    const [sponsors] = await pool.query(
+    const [categorySponsors] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
-              s.id, s.name, s.tier, s.logo_url, s.website_url, s.tagline
+              s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
          FROM category_sponsors cs
          JOIN sponsors s ON cs.sponsor_id = s.id
-        WHERE cs.category_id = ? AND s.is_active = 1
-        ORDER BY cs.sort_order ASC, s.sort_order ASC`,
+        WHERE cs.category_id = ?
+        ORDER BY cs.sort_order ASC, s.sort_order ASC, s.id ASC`,
       [category.id]
     );
+
+    let displaySponsors = categorySponsors;
+    if (!displaySponsors.length) {
+      const [globalSpons] = await pool.query(
+        `SELECT NULL AS association_id,
+                CASE
+                  WHEN tier = 'title_partner' THEN 'Title Partner'
+                  WHEN tier = 'powered_by' THEN 'Powered By'
+                  WHEN tier = 'co_powered_by' THEN 'Co-Powered By'
+                  ELSE 'Official Partner'
+                END AS role,
+                sort_order AS display_order,
+                id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
+           FROM sponsors
+          WHERE is_active = 1
+          ORDER BY sort_order ASC, id ASC
+          LIMIT 2`
+      );
+      displaySponsors = globalSpons;
+    }
 
     const [nominees] = await pool.query(
       `SELECT id, full_name, slug, photo_url, social_handle, nominee_code
@@ -730,7 +750,8 @@ router.get('/categories/:id/poster-preview', async (req, res) => {
 
     res.json({
       category,
-      sponsors,
+      category_sponsors: categorySponsors,
+      sponsors: displaySponsors,
       nominees,
     });
   } catch (error) {
