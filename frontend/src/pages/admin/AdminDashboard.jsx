@@ -13,7 +13,7 @@ const TABS = [
   { key: 'categories', label: 'Categories', icon: '🏷️' },
   { key: 'poster-templates', label: 'Poster Templates & Sponsors', icon: '🎨' },
   { key: 'votes', label: 'Votes & Audit', icon: '🗳️' },
-  { key: 'tickets', label: 'Tickets & Entry', icon: '🎟️' },
+  // { key: 'tickets', label: 'Tickets & Entry', icon: '🎟️' },
   { key: 'past-events', label: 'Past Events & Awardees', icon: '🏛️' },
   { key: 'media', label: 'Media & Gallery', icon: '📸' },
   { key: 'sponsor-leads', label: 'Partner Enquiries', icon: '💼' },
@@ -67,7 +67,7 @@ export default function AdminDashboard() {
     try {
       const auditId = localStorage.getItem('admin_audit_id');
       await api.post('/auth/logout', { audit_id: auditId });
-    } catch (_) {}
+    } catch (_) { }
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_audit_id');
     localStorage.removeItem('admin_user');
@@ -94,11 +94,10 @@ export default function AdminDashboard() {
             <Link
               key={tab.key}
               to={`/admin/${tab.key}`}
-              className={`flex items-center px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 ${
-                currentTab.key === tab.key
-                  ? 'bg-champagne-500/15 text-champagne-400 border border-champagne-500/30 font-bold'
-                  : 'text-white/50 hover:bg-white/5 hover:text-white border border-transparent'
-              }`}
+              className={`flex items-center px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 ${currentTab.key === tab.key
+                ? 'bg-champagne-500/15 text-champagne-400 border border-champagne-500/30 font-bold'
+                : 'text-white/50 hover:bg-white/5 hover:text-white border border-transparent'
+                }`}
             >
               <span className="mr-3 text-base">{tab.icon}</span> {tab.label}
             </Link>
@@ -151,11 +150,10 @@ export default function AdminDashboard() {
                   key={tab.key}
                   to={`/admin/${tab.key}`}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                    currentTab.key === tab.key
-                      ? 'bg-champagne-500/20 text-champagne-400 border border-champagne-500/30 font-bold'
-                      : 'text-white/60 hover:bg-white/5 hover:text-white'
-                  }`}
+                  className={`flex items-center px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${currentTab.key === tab.key
+                    ? 'bg-champagne-500/20 text-champagne-400 border border-champagne-500/30 font-bold'
+                    : 'text-white/60 hover:bg-white/5 hover:text-white'
+                    }`}
                 >
                   <span className="mr-3 text-base">{tab.icon}</span> {tab.label}
                 </Link>
@@ -287,7 +285,7 @@ function OverviewTab() {
         if (data && data.stats) setStats(data.stats);
         if (Array.isArray(data?.recentVotes)) setRecentVotes(data.recentVotes);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   };
 
@@ -387,9 +385,8 @@ function OverviewTab() {
                       {new Date(v.created_at).toLocaleString()}
                     </td>
                     <td className="py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        v.is_flagged ? 'bg-burgundy-900/50 text-burgundy-400 border border-burgundy-500/30' : 'bg-emerald-500/15 text-emerald-400'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${v.is_flagged ? 'bg-burgundy-900/50 text-burgundy-400 border border-burgundy-500/30' : 'bg-emerald-500/15 text-emerald-400'
+                        }`}>
                         {v.is_flagged ? '🚩 Flagged' : '✓ Verified'}
                       </span>
                     </td>
@@ -522,9 +519,8 @@ function NominationsTab() {
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300 ${
-                filter === f.key ? 'bg-champagne-500 text-ink-900 font-bold shadow-sm' : 'bg-ink-800 text-white/60 border border-white/10 hover:border-champagne-500/40'
-              }`}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300 ${filter === f.key ? 'bg-champagne-500 text-ink-900 font-bold shadow-sm' : 'bg-ink-800 text-white/60 border border-white/10 hover:border-champagne-500/40'
+                }`}
             >
               {f.label}
             </button>
@@ -549,9 +545,8 @@ function NominationsTab() {
       </div>
 
       {message && (
-        <div className={`px-4 py-3 rounded-xl text-sm ${
-          message.type === 'success' ? 'bg-emerald-900/30 border border-emerald-500/40 text-emerald-200' : 'bg-burgundy-900/50 border border-burgundy-500/40 text-white/80'
-        }`}>
+        <div className={`px-4 py-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-emerald-900/30 border border-emerald-500/40 text-emerald-200' : 'bg-burgundy-900/50 border border-burgundy-500/40 text-white/80'
+          }`}>
           {message.text}
         </div>
       )}
@@ -615,13 +610,12 @@ function NominationsTab() {
                 {confirmModal.category && <div className="text-champagne-400 text-xs mt-0.5">{confirmModal.category}</div>}
               </div>
 
-              <div className={`p-3.5 rounded-xl border space-y-1.5 ${
-                confirmModal.type === 'shortlist'
-                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
-                  : confirmModal.type === 'undo'
-                    ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
-                    : 'bg-burgundy-950/50 border-burgundy-500/40 text-red-200'
-              }`}>
+              <div className={`p-3.5 rounded-xl border space-y-1.5 ${confirmModal.type === 'shortlist'
+                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                : confirmModal.type === 'undo'
+                  ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                  : 'bg-burgundy-950/50 border-burgundy-500/40 text-red-200'
+                }`}>
                 <p className="font-semibold text-xs leading-relaxed">{confirmModal.warning}</p>
                 {confirmModal.subWarning && (
                   <p className="opacity-80 text-[11px] leading-relaxed">{confirmModal.subWarning}</p>
@@ -690,13 +684,12 @@ function NominationsTab() {
                     </td>
                     <td className="px-4 py-4 text-white/40 text-xs">{n.nomination_code || '—'}</td>
                     <td className="px-4 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                        n.status === 'shortlisted' ? 'bg-emerald-500/15 text-emerald-400'
-                          : n.status === 'verified' ? 'bg-white/10 text-white/70'
-                            : n.status === 'rejected' ? 'bg-burgundy-900/50 text-burgundy-400'
-                              : n.status === 'deleted' ? 'bg-red-950/60 text-red-400'
-                                : 'bg-champagne-500/15 text-champagne-400'
-                      }`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${n.status === 'shortlisted' ? 'bg-emerald-500/15 text-emerald-400'
+                        : n.status === 'verified' ? 'bg-white/10 text-white/70'
+                          : n.status === 'rejected' ? 'bg-burgundy-900/50 text-burgundy-400'
+                            : n.status === 'deleted' ? 'bg-red-950/60 text-red-400'
+                              : 'bg-champagne-500/15 text-champagne-400'
+                        }`}>
                         {n.status}
                       </span>
                     </td>
@@ -764,7 +757,7 @@ function NomineesTab() {
       if (Array.isArray(noms)) setNominees(noms);
       if (Array.isArray(cats)) setCategories(cats);
     }).catch((e) => setMessage({ type: 'error', text: e.message }))
-    .finally(() => setLoading(false));
+      .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -1235,97 +1228,95 @@ function NomineesTab() {
                   const nomineeSlug = n.slug || String(n.id);
                   const nomineeRecord = { ...n, slug: nomineeSlug };
                   return (
-                  <tr key={n.id} className="border-t border-white/5 hover:bg-white/[0.02]">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center space-x-3">
-                        <div
-                          onClick={() => setEditingPhotoNominee(n)}
-                          title="Click to change photo"
-                          className="w-10 h-10 rounded-lg bg-gradient-to-br from-ink-700 to-burgundy-900 flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-champagne-400 transition-all group relative"
-                        >
-                          {n.photo_url ? (
-                            <img src={getAssetUrl(n.photo_url)} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <span className="text-xs">🏆</span>
-                          )}
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-bold">
-                            📷
+                    <tr key={n.id} className="border-t border-white/5 hover:bg-white/[0.02]">
+                      <td className="px-4 py-4">
+                        <div className="flex items-center space-x-3">
+                          <div
+                            onClick={() => setEditingPhotoNominee(n)}
+                            title="Click to change photo"
+                            className="w-10 h-10 rounded-lg bg-gradient-to-br from-ink-700 to-burgundy-900 flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-champagne-400 transition-all group relative"
+                          >
+                            {n.photo_url ? (
+                              <img src={getAssetUrl(n.photo_url)} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <span className="text-xs">🏆</span>
+                            )}
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-bold">
+                              📷
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-white flex items-center gap-1.5">
+                              <span>{n.full_name}</span>
+                              <button
+                                onClick={() => setEditingPhotoNominee(n)}
+                                className="text-[10px] text-champagne-400/80 hover:text-champagne-300 underline font-normal"
+                              >
+                                (change photo)
+                              </button>
+                            </div>
+                            <div className="text-white/30 text-xs">{n.social_handle || ''}</div>
                           </div>
                         </div>
-                        <div>
-                          <div className="font-medium text-white flex items-center gap-1.5">
-                            <span>{n.full_name}</span>
+                      </td>
+                      <td className="px-4 py-4 text-white/60 text-xs">{n.category_name || '—'}</td>
+                      <td className="px-4 py-4 text-white/40 text-xs font-mono">{n.nominee_code || '—'}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => downloadQrPng(qrUrl(nomineeRecord), `TIA2026-QR-${nomineeSlug}.png`, 1200)}
+                            title="Download QR Code (PNG)"
+                            className="shrink-0"
+                          >
+                            <QrBlock value={qrUrl(nomineeRecord)} size={30} label={null} showUrl={false} />
+                          </button>
+                          <div className="min-w-0">
+                            <div className="text-white/40 text-[10px] font-mono truncate max-w-[120px]">/nominee/{nomineeSlug}</div>
                             <button
-                              onClick={() => setEditingPhotoNominee(n)}
-                              className="text-[10px] text-champagne-400/80 hover:text-champagne-300 underline font-normal"
+                              onClick={() => { navigator.clipboard?.writeText(voteUrl(nomineeRecord)); }}
+                              className="text-[10px] text-champagne-400/70 hover:text-champagne-300 underline"
                             >
-                              (change photo)
+                              Copy vote link
                             </button>
                           </div>
-                          <div className="text-white/30 text-xs">{n.social_handle || ''}</div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-white/60 text-xs">{n.category_name || '—'}</td>
-                    <td className="px-4 py-4 text-white/40 text-xs font-mono">{n.nominee_code || '—'}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => downloadQrPng(qrUrl(nomineeRecord), `TIA2026-QR-${nomineeSlug}.png`, 1200)}
-                          title="Download QR Code (PNG)"
-                          className="shrink-0"
-                        >
-                          <QrBlock value={qrUrl(nomineeRecord)} size={30} label={null} showUrl={false} />
-                        </button>
-                        <div className="min-w-0">
-                          <div className="text-white/40 text-[10px] font-mono truncate max-w-[120px]">/nominee/{nomineeSlug}</div>
-                          <button
-                            onClick={() => { navigator.clipboard?.writeText(voteUrl(nomineeRecord)); }}
-                            className="text-[10px] text-champagne-400/70 hover:text-champagne-300 underline"
-                          >
-                            Copy vote link
-                          </button>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-white font-medium">{n.vote_count?.toLocaleString()}</td>
-                    <td className="px-4 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                        n.status === 'approved' ? 'bg-emerald-500/15 text-emerald-400'
+                      </td>
+                      <td className="px-4 py-4 text-white font-medium">{n.vote_count?.toLocaleString()}</td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${n.status === 'approved' ? 'bg-emerald-500/15 text-emerald-400'
                           : n.status === 'rejected' ? 'bg-burgundy-900/50 text-burgundy-400'
                             : 'bg-champagne-500/15 text-champagne-400'
-                      }`}>
-                        {n.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                        Number(n.voting_open) === 1 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-white/30'
-                      }`}>
-                        {Number(n.voting_open) === 1 ? 'Open' : 'Closed'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <button
-                        onClick={() => setCampaignNominee(n)}
-                        className="px-2.5 py-1 rounded-lg bg-champagne-500/10 text-champagne-400 text-[10px] font-bold border border-champagne-500/30 hover:bg-champagne-500/20"
-                      >
-                        🎯 MY CAMPAIGN
-                      </button>
-                    </td>
-                    <td className="px-4 py-4">
-                      <button onClick={() => toggleFeatured(n)} className={`text-xs font-medium ${n.featured ? 'text-champagne-400' : 'text-white/30 hover:text-white'}`}>
-                        {n.featured ? '★ Featured' : '☆ Not Featured'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-4 text-right space-x-2 whitespace-nowrap">
-                      <button onClick={() => setEditingNominee(n)} className="text-xs text-champagne-400 hover:text-champagne-300 font-medium">Edit ✏️</button>
-                      <button onClick={() => setEditingPhotoNominee(n)} className="text-xs text-champagne-400 hover:text-champagne-300 font-medium">Photo 📷</button>
-                      <a href={`/nominee/${nomineeSlug}`} target="_blank" rel="noreferrer" className="text-white/70 hover:text-white text-xs font-medium">View ↗</a>
-                      <button onClick={() => toggleStatus(n)} className="text-white/40 hover:text-white text-xs font-medium">{n.status === 'approved' ? 'Archive' : 'Activate'}</button>
-                      <button onClick={() => handleDeleteNominee(n)} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Delete 🗑️</button>
-                    </td>
-                  </tr>
+                          }`}>
+                          {n.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${Number(n.voting_open) === 1 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-white/30'
+                          }`}>
+                          {Number(n.voting_open) === 1 ? 'Open' : 'Closed'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <button
+                          onClick={() => setCampaignNominee(n)}
+                          className="px-2.5 py-1 rounded-lg bg-champagne-500/10 text-champagne-400 text-[10px] font-bold border border-champagne-500/30 hover:bg-champagne-500/20"
+                        >
+                          🎯 MY CAMPAIGN
+                        </button>
+                      </td>
+                      <td className="px-4 py-4">
+                        <button onClick={() => toggleFeatured(n)} className={`text-xs font-medium ${n.featured ? 'text-champagne-400' : 'text-white/30 hover:text-white'}`}>
+                          {n.featured ? '★ Featured' : '☆ Not Featured'}
+                        </button>
+                      </td>
+                      <td className="px-4 py-4 text-right space-x-2 whitespace-nowrap">
+                        <button onClick={() => setEditingNominee(n)} className="text-xs text-champagne-400 hover:text-champagne-300 font-medium">Edit ✏️</button>
+                        <button onClick={() => setEditingPhotoNominee(n)} className="text-xs text-champagne-400 hover:text-champagne-300 font-medium">Photo 📷</button>
+                        <a href={`/nominee/${nomineeSlug}`} target="_blank" rel="noreferrer" className="text-white/70 hover:text-white text-xs font-medium">View ↗</a>
+                        <button onClick={() => toggleStatus(n)} className="text-white/40 hover:text-white text-xs font-medium">{n.status === 'approved' ? 'Archive' : 'Activate'}</button>
+                        <button onClick={() => handleDeleteNominee(n)} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Delete 🗑️</button>
+                      </td>
+                    </tr>
                   );
                 })
               )}
@@ -1368,7 +1359,7 @@ function MyCampaignPanel({ nominee, onClose }) {
   const maxViews = Math.max(1, ...timeseries.map((d) => Number(d.views) || 0));
 
   const copy = (text, key) => {
-    navigator.clipboard?.writeText(text).catch(() => {});
+    navigator.clipboard?.writeText(text).catch(() => { });
     setCopied(key);
     setTimeout(() => setCopied(null), 2000);
   };
@@ -1659,9 +1650,8 @@ function CategoriesTab() {
             <button
               key={t.key}
               onClick={() => setTypeFilter(t.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                typeFilter === t.key ? 'bg-champagne-500 text-ink-900 font-bold' : 'bg-ink-800 text-white/60 border border-white/10 hover:border-champagne-500/40'
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${typeFilter === t.key ? 'bg-champagne-500 text-ink-900 font-bold' : 'bg-ink-800 text-white/60 border border-white/10 hover:border-champagne-500/40'
+                }`}
             >
               {t.label}
             </button>
@@ -1814,37 +1804,37 @@ function CategoriesTab() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCategories.map((c) => (
-          <div key={c.id} className={`glass-card p-5 transition-all duration-300 flex flex-col justify-between ${c.voting_open ? '' : 'opacity-70'}`}>
-            <div>
-              <div className="flex items-start justify-between mb-3">
-                <span className="text-2xl">{c.icon || (c.type === 'jury' ? '👑' : '🏆')}</span>
-                <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-white/10 text-white/50">{c.type === 'jury' ? 'Jury' : "People's Choice"}</span>
+            <div key={c.id} className={`glass-card p-5 transition-all duration-300 flex flex-col justify-between ${c.voting_open ? '' : 'opacity-70'}`}>
+              <div>
+                <div className="flex items-start justify-between mb-3">
+                  <span className="text-2xl">{c.icon || (c.type === 'jury' ? '👑' : '🏆')}</span>
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-white/10 text-white/50">{c.type === 'jury' ? 'Jury' : "People's Choice"}</span>
+                </div>
+                <h3 className="font-semibold text-white mb-1">{c.name}</h3>
+                {c.description && (
+                  <p className="text-white/40 text-xs line-clamp-2 mt-1">{c.description}</p>
+                )}
               </div>
-              <h3 className="font-semibold text-white mb-1">{c.name}</h3>
-              {c.description && (
-                <p className="text-white/40 text-xs line-clamp-2 mt-1">{c.description}</p>
-              )}
+              <div className="pt-4 border-t border-white/5 mt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`text-xs font-medium ${c.voting_open ? 'text-emerald-400' : 'text-white/40'}`}>
+                    {c.voting_open ? '● Voting Open' : '○ Voting Closed'}
+                  </span>
+                  <button
+                    onClick={() => toggleVoting(c)}
+                    className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${c.voting_open ? 'bg-emerald-500' : 'bg-ink-700 border border-white/20'}`}
+                  >
+                    <span className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 ${c.voting_open ? 'left-[22px] bg-white' : 'left-0.5 bg-white/60'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-end gap-2 text-xs">
+                  <Link to={`/admin/poster-templates?category=${c.id}`} className="text-champagne-400 hover:text-champagne-300 font-medium">🎨 Poster &amp; Sponsors</Link>
+                  <button onClick={() => setEditingCategory(c)} className="text-champagne-400 hover:text-champagne-300 font-medium ml-2">Edit ✏️</button>
+                  <button onClick={() => handleDeleteCategory(c.id, c.name)} className="text-burgundy-400 hover:text-burgundy-300 font-medium ml-2">Delete 🗑️</button>
+                </div>
+              </div>
             </div>
-            <div className="pt-4 border-t border-white/5 mt-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className={`text-xs font-medium ${c.voting_open ? 'text-emerald-400' : 'text-white/40'}`}>
-                  {c.voting_open ? '● Voting Open' : '○ Voting Closed'}
-                </span>
-                <button
-                  onClick={() => toggleVoting(c)}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${c.voting_open ? 'bg-emerald-500' : 'bg-ink-700 border border-white/20'}`}
-                >
-                  <span className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 ${c.voting_open ? 'left-[22px] bg-white' : 'left-0.5 bg-white/60'}`} />
-                </button>
-              </div>
-              <div className="flex items-center justify-end gap-2 text-xs">
-                <Link to={`/admin/poster-templates?category=${c.id}`} className="text-champagne-400 hover:text-champagne-300 font-medium">🎨 Poster &amp; Sponsors</Link>
-                <button onClick={() => setEditingCategory(c)} className="text-champagne-400 hover:text-champagne-300 font-medium ml-2">Edit ✏️</button>
-                <button onClick={() => handleDeleteCategory(c.id, c.name)} className="text-burgundy-400 hover:text-burgundy-300 font-medium ml-2">Delete 🗑️</button>
-              </div>
-            </div>
-          </div>
-        ))}
+          ))}
         </div>
       )}
     </div>
@@ -1863,7 +1853,7 @@ function VotesTab() {
       .then((data) => {
         if (Array.isArray(data)) setVotes(data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [flaggedOnly]);
@@ -1963,9 +1953,8 @@ function VotesTab() {
                     <td className="px-4 py-4">
                       <button
                         onClick={() => toggleFlag(v)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ${
-                          v.is_flagged ? 'bg-burgundy-900/50 text-burgundy-400 border border-burgundy-600' : 'bg-white/5 text-white/40 border border-white/10 hover:text-white'
-                        }`}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ${v.is_flagged ? 'bg-burgundy-900/50 text-burgundy-400 border border-burgundy-600' : 'bg-white/5 text-white/40 border border-white/10 hover:text-white'
+                          }`}
                       >
                         {v.is_flagged ? `🚩 ${v.flag_reason || 'Flagged'}` : 'Flag'}
                       </button>
@@ -2002,7 +1991,7 @@ function SponsorsTab() {
       .then((data) => {
         if (Array.isArray(data)) setSponsors(data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
@@ -2219,7 +2208,7 @@ function SettingsTab() {
         data.forEach((s) => { obj[s.setting_key] = s.setting_value; });
         setSettings(obj);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const save = async () => {
@@ -2351,11 +2340,10 @@ function SettingsTab() {
 
         {pwdMsg && (
           <div
-            className={`px-4 py-3 rounded-xl text-sm mb-5 border ${
-              pwdMsg.type === 'error'
-                ? 'bg-red-900/30 border-red-500/40 text-red-200'
-                : 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
-            }`}
+            className={`px-4 py-3 rounded-xl text-sm mb-5 border ${pwdMsg.type === 'error'
+              ? 'bg-red-900/30 border-red-500/40 text-red-200'
+              : 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
+              }`}
           >
             {pwdMsg.text}
           </div>
@@ -2580,20 +2568,18 @@ function TicketsTab() {
                     <td className="py-3 pr-4 font-bold">{ord.quantity}</td>
                     <td className="py-3 pr-4 capitalize text-emerald-400">{ord.food_entitlement}</td>
                     <td className="py-3 pr-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        ord.is_checked_in ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/50'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${ord.is_checked_in ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/50'
+                        }`}>
                         {ord.is_checked_in ? '✓ Inside' : 'Not Checked'}
                       </span>
                     </td>
                     <td className="py-3">
                       <button
                         onClick={() => toggleCheckIn(ord)}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                          ord.is_checked_in
-                            ? 'bg-ink-800 text-white/60 hover:text-red-400 border border-white/10'
-                            : 'bg-emerald-500 text-ink-900 hover:bg-emerald-400 shadow'
-                        }`}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${ord.is_checked_in
+                          ? 'bg-ink-800 text-white/60 hover:text-red-400 border border-white/10'
+                          : 'bg-emerald-500 text-ink-900 hover:bg-emerald-400 shadow'
+                          }`}
                       >
                         {ord.is_checked_in ? 'Undo Check-In' : 'Admit Entry'}
                       </button>
@@ -2680,17 +2666,15 @@ function PastEventsTab() {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveSubTab('events')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeSubTab === 'events' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeSubTab === 'events' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
+              }`}
           >
             Past Events Hub ({events.length})
           </button>
           <button
             onClick={() => setActiveSubTab('awardees')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeSubTab === 'awardees' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeSubTab === 'awardees' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
+              }`}
           >
             Awardees & Hall of Fame ({awardees.length})
           </button>
@@ -2970,17 +2954,15 @@ function MediaTab() {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveSubTab('gallery')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeSubTab === 'gallery' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeSubTab === 'gallery' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
+              }`}
           >
             Photo Gallery ({gallery.length})
           </button>
           <button
             onClick={() => setActiveSubTab('media')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeSubTab === 'media' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeSubTab === 'media' ? 'bg-champagne-500 text-ink-900' : 'bg-ink-800 text-white/60 hover:text-white'
+              }`}
           >
             Press Releases & News ({media.length})
           </button>
@@ -3247,7 +3229,7 @@ function PhaseTab() {
         const item = data.find((s) => s.setting_key === 'event_phase');
         if (item) setCurrentPhase(item.setting_value);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const savePhase = async (phase) => {
@@ -3349,18 +3331,16 @@ function PhaseTab() {
                     savePhase(p.id);
                   }
                 }}
-                className={`relative rounded-2xl border cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 sm:p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-champagne-400 ${
-                  isActive
-                    ? 'bg-champagne-500/15 border-champagne-500 shadow-gold'
-                    : 'bg-ink-900/60 border-white/5 hover:border-white/20 active:border-champagne-500/50'
-                }`}
+                className={`relative rounded-2xl border cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 sm:p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-champagne-400 ${isActive
+                  ? 'bg-champagne-500/15 border-champagne-500 shadow-gold'
+                  : 'bg-ink-900/60 border-white/5 hover:border-white/20 active:border-champagne-500/50'
+                  }`}
               >
                 <span className={`absolute left-0 top-4 bottom-4 w-[3px] rounded-full ${isActive ? 'bg-champagne-400' : 'bg-transparent'}`} aria-hidden="true" />
 
                 <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
-                  <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold shrink-0 ${
-                    isActive ? 'bg-champagne-500 text-ink-900' : 'bg-white/10 text-white/60'
-                  }`}>
+                  <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold shrink-0 ${isActive ? 'bg-champagne-500 text-ink-900' : 'bg-white/10 text-white/60'
+                    }`}>
                     {p.num}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -3383,11 +3363,10 @@ function PhaseTab() {
                     and nesting a real button inside it breaks keyboard/AT semantics. */}
                 <span
                   aria-hidden="true"
-                  className={`w-full sm:w-auto shrink-0 text-center sm:text-left px-4 py-2 rounded-xl text-xs font-bold transition-colors pointer-events-none ${
-                    isActive
-                      ? 'bg-champagne-500/25 text-champagne-300 border border-champagne-500/50'
-                      : 'bg-white/5 text-white/60 border border-white/10'
-                  }`}
+                  className={`w-full sm:w-auto shrink-0 text-center sm:text-left px-4 py-2 rounded-xl text-xs font-bold transition-colors pointer-events-none ${isActive
+                    ? 'bg-champagne-500/25 text-champagne-300 border border-champagne-500/50'
+                    : 'bg-white/5 text-white/60 border border-white/10'
+                    }`}
                 >
                   {isActive ? 'Current Phase' : (saving ? 'Switching...' : 'Switch to this')}
                 </span>
@@ -3409,7 +3388,7 @@ function AuditTab() {
     setLoading(true);
     api.get('/admin/audit-logs', { force })
       .then((data) => { if (Array.isArray(data)) setLogs(data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   };
 
