@@ -1,19 +1,21 @@
-const PROD_API_URL = 'https://awards-production-13eb.up.railway.app/api';
+const PROD_API_URL = 'https://teluguiconawards.in/api';
 
 const rawEnv = (import.meta.env.VITE_API_URL || '').trim();
 export const API_BASE = rawEnv
   ? (rawEnv.replace(/\/+$/, '').endsWith('/api') ? rawEnv.replace(/\/+$/, '') : `${rawEnv.replace(/\/+$/, '')}/api`)
-  : (import.meta.env.DEV ? '/api' : PROD_API_URL);
+  : (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('vercel.app')
+      ? '/api'
+      : (import.meta.env.DEV ? '/api' : PROD_API_URL));
 
 export const getAssetUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url;
-  const origin = API_BASE.endsWith('/api') ? API_BASE.slice(0, -4) : API_BASE;
   const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  const origin = API_BASE.endsWith('/api') ? API_BASE.slice(0, -4) : API_BASE;
   if (origin && origin !== '/api') {
     return `${origin}${cleanPath}`;
   }
-  return cleanPath;
+  return `https://teluguiconawards.in${cleanPath}`;
 };
 
 // In-memory response cache for lightning-fast tab navigation

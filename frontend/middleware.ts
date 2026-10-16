@@ -24,7 +24,8 @@
 //   - No env vars are required. API_BASE falls back to the Railway backend and
 //     the public origin is taken from the incoming request.
 
-const API_BASE = (process.env.API_BASE_URL || 'https://awards-production-13eb.up.railway.app/api').replace(/\/+$/, '');
+const API_BASE = (process.env.API_BASE_URL || 'https://teluguiconawards.in/api').replace(/\/+$/, '');
+const FALLBACK_API_BASE = 'https://awards-production-13eb.up.railway.app/api';
 const EVENT = 'Telugu Icon Digital & Influencer Awards 2026';
 
 // Public origin for canonical URLs, Open Graph URLs and the sitemap.
@@ -61,16 +62,22 @@ const mediaUrl = (photoUrl, siteUrl) => {
 };
 
 const fetchNominee = async (slugOrId) => {
-  try {
-    const res = await fetch(`${API_BASE}/nominees/${encodeURIComponent(slugOrId)}`, {
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return null;
-    const body = await res.json();
-    return body && body.id ? body : null;
-  } catch (_) {
-    return null;
+  // Query teluguiconawards.in first, then fallback to Railway
+  const endpoints = [API_BASE];
+  if (FALLBACK_API_BASE !== API_BASE) endpoints.push(FALLBACK_API_BASE);
+
+  for (const base of endpoints) {
+    try {
+      const res = await fetch(`${base}/nominees/${encodeURIComponent(slugOrId)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body && body.id) return body;
+      }
+    } catch (_) {}
   }
+  return null;
 };
 
 const fetchIndexHtml = async (request) => {
@@ -228,14 +235,17 @@ export default async function middleware(request) {
 
   const slug = decodeURIComponent(match[1]);
   const nominee = await fetchNominee(slug);
+  const shell = await fetchIndexHtml(request);
 
-  // API unreachable / nominee archived: a real 404 is the correct answer for a
-  // crawler and better than a soft-200 on a dead link.
+  // If nominee is not found at the edge, serve the SPA shell so the
+  // client-side React router can load and fetch from its active endpoint.
   if (!nominee) {
+    if (shell) {
+      return htmlResponse(shell, 200, 'public, max-age=0, s-maxage=60');
+    }
     return htmlResponse(notFoundPage(siteUrl), 404, 'public, max-age=0, s-maxage=300');
   }
 
-  const shell = await fetchIndexHtml(request);
   if (!shell) {
     // The app shell could not be read - serve a usable page rather than a 500.
     return htmlResponse(
