@@ -36,8 +36,8 @@ if (TRUST_PROXY === 'true' || TRUST_PROXY === '1') {
   app.set('trust proxy', Number(TRUST_PROXY));
 }
 
-//app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+//app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
