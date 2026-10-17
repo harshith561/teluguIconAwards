@@ -5,6 +5,8 @@ import PageTransition from '../components/PageTransition';
 import LiveLeaderboard from '../components/LiveLeaderboard';
 import { api } from '../api';
 
+export const EXTERNAL_TICKETS_URL = 'https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8';
+
 const ALL_CATEGORIES_DATA = [
   { id: 1, num: '01', name: 'Telugu YouTuber of the Year', type: 'public', desc: 'Eligible for self-nomination and public voting, subject to category relevance and verification.' },
   { id: 2, num: '02', name: 'Best Entertainment Creator', type: 'public', desc: 'Eligible for self-nomination and public voting, subject to category relevance and verification.' },
@@ -91,20 +93,6 @@ const MILESTONES = [
   { target: '2026-11-16T10:00:00+05:30', label: 'THE ICONS ARE REVEALED IN', name: 'EVENT DAY · 16 NOVEMBER 2026' }
 ];
 
-const DEFAULT_TICKETS = [
-  { id: 1, session: 1, tier: 'vvip', price_paisa: 50000, price_display: '₹500', availability: 'available', is_active: 1 },
-  { id: 2, session: 1, tier: 'mip', price_paisa: 100000, price_display: '₹1,000', availability: 'available', is_active: 1 },
-  { id: 3, session: 2, tier: 'vvip', price_paisa: 50000, price_display: '₹500', availability: 'available', is_active: 1 },
-  { id: 4, session: 2, tier: 'mip', price_paisa: 100000, price_display: '₹1,000', availability: 'available', is_active: 1 }
-];
-
-const TICKET_AVAIL_CONFIG = {
-  available:       { label: 'AVAILABLE',       cls: 'text-[#8fe0a5] border-[#8fe0a5]/40 bg-[#8fe0a5]/10', isSoldOut: false },
-  filling_fast:    { label: 'FILLING FAST',    cls: 'text-[#f1d99a] border-[#f1d99a]/40 bg-[#f1d99a]/10', isSoldOut: false },
-  almost_sold_out: { label: 'ALMOST SOLD OUT', cls: 'text-[#f59e0b] border-[#f59e0b]/40 bg-[#f59e0b]/10', isSoldOut: false },
-  sold_out:        { label: 'SOLD OUT',         cls: 'text-[#ef4444] border-[#ef4444]/40 bg-[#ef4444]/10', isSoldOut: true },
-};
-
 function pad(n) {
   return String(Math.max(0, n)).padStart(2, '0');
 }
@@ -115,88 +103,6 @@ export default function HomePage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllCategories, setShowAllCategories] = useState(false);
-  const [tickets, setTickets] = useState(DEFAULT_TICKETS);
-  const [hasLoadedTickets, setHasLoadedTickets] = useState(false);
-  const fetchedTicketsRef = useRef(false);
-
-  // Calls the ticket availability API once on load based on dependency
-  useEffect(() => {
-    if (hasLoadedTickets || fetchedTicketsRef.current) return;
-    fetchedTicketsRef.current = true;
-
-    api.get('/tickets/availability')
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setTickets(data);
-          setHasLoadedTickets(true);
-        }
-      })
-      .catch(() => {});
-  }, [hasLoadedTickets]);
-
-  const getTicketInfo = (session, tier) => {
-    const match = tickets.find(
-      (t) => t.session === session && t.tier.toLowerCase() === tier.toLowerCase() && t.is_active
-    );
-    const tierUpper = tier.toUpperCase();
-    const defaultPrice = tierUpper === 'MIP' ? '₹1,000' : '₹500';
-    const priceDisplay = match?.price_display || defaultPrice;
-    const availKey = match?.availability || 'available';
-    const avail = TICKET_AVAIL_CONFIG[availKey] || TICKET_AVAIL_CONFIG.available;
-    const isSoldOut = availKey === 'sold_out';
-    return {
-      ...match,
-      priceDisplay,
-      avail,
-      isSoldOut,
-    };
-  };
-
-  const renderTicketCard = (session, tier, mealName, mealFeature) => {
-    const t = getTicketInfo(session, tier);
-    const tierName = tier.toUpperCase();
-    return (
-      <div className={`card-preview p-5 sm:p-8 flex flex-col justify-between transition-all ${t.isSoldOut ? 'opacity-65' : ''}`}>
-        <div>
-          <div className="text-[#d8b56b] text-xs tracking-[2px] font-black">{tierName}</div>
-          <div className="text-3xl sm:text-4xl font-black text-white my-2 font-serif-luxury">{t.priceDisplay}</div>
-          <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold my-2 rounded">
-            {mealName}
-          </div>
-          <ul className="text-xs text-[#d6c5b3] space-y-1.5 sm:space-y-2 my-3 sm:my-4">
-            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">
-              ✓ {tierName === 'MIP' ? 'MIP premium access' : 'VVIP event access'}
-            </li>
-            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Session {session} entry</li>
-            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
-            <li className="pb-1 border-b border-[rgba(216,181,107,0.1)]">✓ {mealFeature}</li>
-          </ul>
-        </div>
-        <div>
-          <div className={`inline-block text-[10px] sm:text-[11px] font-bold border px-2.5 py-1 rounded mb-4 ${t.avail.cls}`}>
-            ● {t.avail.label}
-          </div>
-          <div>
-            {t.isSoldOut ? (
-              <button
-                disabled
-                className="btn-outline opacity-50 cursor-not-allowed w-full text-center"
-              >
-                SOLD OUT
-              </button>
-            ) : (
-              <Link
-                to={`/tickets?session=${session}&tier=${tier.toLowerCase()}`}
-                className="btn-gold inline-block w-full text-center"
-              >
-                BOOK {tierName} ({t.priceDisplay})
-              </Link>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   // Dynamic countdown engine matching preview.html
   useEffect(() => {
@@ -323,7 +229,7 @@ export default function HomePage() {
               VOTE NOW
             </Link>
             <a
-              href="https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8"
+              href={EXTERNAL_TICKETS_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-outline"
@@ -501,9 +407,8 @@ export default function HomePage() {
                     <button
                       key={tab.key}
                       onClick={() => setCategoryFilter(tab.key)}
-                      className={`px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold rounded transition-colors ${
-                        categoryFilter === tab.key ? 'bg-[#d8b56b] text-[#160505]' : 'text-[#cdbda9] hover:text-white'
-                      }`}
+                      className={`px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold rounded transition-colors ${categoryFilter === tab.key ? 'bg-[#d8b56b] text-[#160505]' : 'text-[#cdbda9] hover:text-white'
+                        }`}
                     >
                       {tab.label}
                     </button>
@@ -833,36 +738,76 @@ export default function HomePage() {
       {/* 11. TICKETING SECTION */}
       <section className="py-12 sm:py-20 md:py-24 bg-gradient-to-b from-[#150505] to-[#220909]" id="tickets">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
+          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
             <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#d8b56b] font-black uppercase mb-2">Ticketing</div>
-            <h2 className="section-title text-2xl sm:text-4xl md:text-5xl">Choose Your Session.</h2>
+            <h2 className="section-title text-2xl sm:text-4xl md:text-5xl">Book Your Passes.</h2>
             <p className="text-[#a99888] text-xs sm:text-sm md:text-base">
-              Book your preferred session. The public ticket interface shows availability status only — never total capacity or remaining inventory.
+              Choose your ticket pass below. Click on ₹500 or ₹1,000 to book securely on FunZippy.
             </p>
           </div>
 
-          {/* Session 1 */}
-          <div className="mb-10 sm:mb-14">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-1.5 sm:gap-2 mb-4 sm:mb-6 pb-2 border-b border-[rgba(216,181,107,0.2)]">
-              <h3 className="font-serif-luxury text-xl sm:text-2xl md:text-3xl font-bold text-[#fff7e8]">☀ Session 1</h3>
-              <span className="text-[#f1d99a] text-[11px] sm:text-xs font-bold tracking-wide">10:00 AM – 2:00 PM · COMPLIMENTARY LUNCH</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              {renderTicketCard(1, 'vvip', 'COMPLIMENTARY LUNCH INCLUDED', 'Lunch included')}
-              {renderTicketCard(1, 'mip', 'COMPLIMENTARY LUNCH INCLUDED', 'Lunch included')}
-            </div>
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto">
+            {/* VVIP Pass (₹500) */}
+            <a
+              href={EXTERNAL_TICKETS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card-preview p-6 sm:p-8 flex flex-col justify-between transition-all group cursor-pointer hover:border-[#d8b56b] hover:shadow-[0_0_30px_rgba(216,181,107,0.25)] bg-[#1a0606]/90 rounded-xl border border-[rgba(216,181,107,0.25)] block text-left"
+            >
+              <div>
+                <div className="text-[#d8b56b] text-xs tracking-[2px] font-black uppercase">VVIP ACCESS</div>
+                <div className="text-4xl sm:text-5xl font-black text-white my-3 font-serif-luxury group-hover:text-[#f1d99a] transition-colors">
+                  ₹500
+                </div>
+                <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold mb-4 rounded">
+                  COMPLIMENTARY FOOD INCLUDED
+                </div>
+                <ul className="text-xs sm:text-sm text-[#d6c5b3] space-y-2 mb-6">
+                  <li className="pb-1.5 border-b border-[rgba(216,181,107,0.1)]">✓ VVIP event access</li>
+                  <li className="pb-1.5 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
+                  <li className="pb-1.5 border-b border-[rgba(216,181,107,0.1)]">✓ Food &amp; refreshments included</li>
+                </ul>
+              </div>
+              <div>
+                <span className="btn-gold inline-flex items-center justify-center gap-2 w-full text-center py-3 text-sm sm:text-base font-bold group-hover:bg-[#dfc178] transition-all">
+                  <span>BOOK VVIP (₹500)</span>
+                  <svg className="w-4 h-4 inline-block opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </span>
+              </div>
+            </a>
 
-          {/* Session 2 */}
-          <div>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-1.5 sm:gap-2 mb-4 sm:mb-6 pb-2 border-b border-[rgba(216,181,107,0.2)]">
-              <h3 className="font-serif-luxury text-xl sm:text-2xl md:text-3xl font-bold text-[#fff7e8]">🌙 Session 2</h3>
-              <span className="text-[#f1d99a] text-[11px] sm:text-xs font-bold tracking-wide">3:00 PM – 7:00 PM · COMPLIMENTARY DINNER</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              {renderTicketCard(2, 'vvip', 'COMPLIMENTARY DINNER INCLUDED', 'Dinner included')}
-              {renderTicketCard(2, 'mip', 'COMPLIMENTARY DINNER INCLUDED', 'Dinner included')}
-            </div>
+            {/* MIP Pass (₹1,000) */}
+            <a
+              href={EXTERNAL_TICKETS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card-preview p-6 sm:p-8 flex flex-col justify-between transition-all group cursor-pointer hover:border-[#d8b56b] hover:shadow-[0_0_30px_rgba(216,181,107,0.25)] bg-[#1a0606]/90 rounded-xl border border-[rgba(216,181,107,0.25)] block text-left"
+            >
+              <div>
+                <div className="text-[#d8b56b] text-xs tracking-[2px] font-black uppercase">MIP PREMIUM</div>
+                <div className="text-4xl sm:text-5xl font-black text-white my-3 font-serif-luxury group-hover:text-[#f1d99a] transition-colors">
+                  ₹1,000
+                </div>
+                <div className="inline-block px-2.5 py-1 border border-[rgba(216,181,107,0.3)] bg-[#d8b56b]/10 text-[#f1d99a] text-[11px] sm:text-xs font-bold mb-4 rounded">
+                  COMPLIMENTARY FOOD INCLUDED
+                </div>
+                <ul className="text-xs sm:text-sm text-[#d6c5b3] space-y-2 mb-6">
+                  <li className="pb-1.5 border-b border-[rgba(216,181,107,0.1)]">✓ MIP premium access</li>
+                  <li className="pb-1.5 border-b border-[rgba(216,181,107,0.1)]">✓ Digital QR ticket</li>
+                  <li className="pb-1.5 border-b border-[rgba(216,181,107,0.1)]">✓ Food &amp; refreshments included</li>
+                </ul>
+              </div>
+              <div>
+                <span className="btn-gold inline-flex items-center justify-center gap-2 w-full text-center py-3 text-sm sm:text-base font-bold group-hover:bg-[#dfc178] transition-all">
+                  <span>BOOK MIP (₹1,000)</span>
+                  <svg className="w-4 h-4 inline-block opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </span>
+              </div>
+            </a>
           </div>
 
           <p className="text-center text-xs text-[#9e8e7e] mt-8 sm:mt-10 max-w-2xl mx-auto">
@@ -1064,7 +1009,7 @@ export default function HomePage() {
               SELF-NOMINATE
             </Link>
             <a
-              href="https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8"
+              href={EXTERNAL_TICKETS_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-outline"
