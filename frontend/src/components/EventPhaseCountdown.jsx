@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 
+const BOOKING_URL = 'https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8';
+
 const EVENT_PHASES = {
   phase_1: {
     badge: 'Phase 1: Nominations Open',
@@ -18,14 +20,14 @@ const EVENT_PHASES = {
     targetDate: new Date('2026-11-15T23:59:59+05:30'),
     subtitle: 'Cast your 100% verified vote for your favorite Telugu creators before November 15, 2026.',
     primaryBtn: { label: 'Vote Now', link: '/vote' },
-    secondaryBtn: { label: 'Book Tickets', link: '/tickets' },
+    secondaryBtn: { label: 'Book Tickets', link: BOOKING_URL },
   },
   phase_3: {
     badge: 'Phase 3: Final Audit & Reconciliation',
     title: 'Voting Closed • Audit Scrutiny in Progress',
     targetDate: new Date('2026-11-16T10:00:00+05:30'),
     subtitle: 'Independent audit and organizing committee reviewing final verified results before live ceremony.',
-    primaryBtn: { label: 'Book Tickets', link: '/tickets' },
+    primaryBtn: { label: 'Book Tickets', link: BOOKING_URL },
     secondaryBtn: { label: 'View Nominees', link: '/nominees' },
   },
   phase_4: {
@@ -134,18 +136,41 @@ export default function EventPhaseCountdown({ overridePhase }) {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4">
-          <Link
-            to={currentPhase.primaryBtn.link}
-            className="px-4 py-2 sm:px-6 sm:py-2.5 rounded-full bg-champagne-500 text-ink-900 font-bold text-xs sm:text-sm hover:bg-champagne-400 transition-all shadow-gold"
-          >
-            {currentPhase.primaryBtn.label}
-          </Link>
-          <Link
-            to={currentPhase.secondaryBtn.link}
-            className="px-4 py-2 sm:px-6 sm:py-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white font-medium text-xs sm:text-sm border border-white/10 transition-all"
-          >
-            {currentPhase.secondaryBtn.label}
-          </Link>
+          {currentPhase.primaryBtn.link.startsWith('http') ? (
+            <a
+              href={currentPhase.primaryBtn.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 sm:px-6 sm:py-2.5 rounded-full bg-champagne-500 text-ink-900 font-bold text-xs sm:text-sm hover:bg-champagne-400 transition-all shadow-gold"
+            >
+              {currentPhase.primaryBtn.label}
+            </a>
+          ) : (
+            <Link
+              to={currentPhase.primaryBtn.link}
+              className="px-4 py-2 sm:px-6 sm:py-2.5 rounded-full bg-champagne-500 text-ink-900 font-bold text-xs sm:text-sm hover:bg-champagne-400 transition-all shadow-gold"
+            >
+              {currentPhase.primaryBtn.label}
+            </Link>
+          )}
+
+          {currentPhase.secondaryBtn.link.startsWith('http') ? (
+            <a
+              href={currentPhase.secondaryBtn.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 sm:px-6 sm:py-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white font-medium text-xs sm:text-sm border border-white/10 transition-all"
+            >
+              {currentPhase.secondaryBtn.label}
+            </a>
+          ) : (
+            <Link
+              to={currentPhase.secondaryBtn.link}
+              className="px-4 py-2 sm:px-6 sm:py-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white font-medium text-xs sm:text-sm border border-white/10 transition-all"
+            >
+              {currentPhase.secondaryBtn.label}
+            </Link>
+          )}
         </div>
       </div>
     </div>

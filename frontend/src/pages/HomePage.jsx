@@ -322,9 +322,14 @@ export default function HomePage() {
             <Link to="/vote" className="btn-outline">
               VOTE NOW
             </Link>
-            <Link to="/tickets" className="btn-outline">
+            <a
+              href="https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-outline"
+            >
               BOOK TICKETS
-            </Link>
+            </a>
           </div>
 
           {/* Dynamic Countdown */}
@@ -1058,9 +1063,14 @@ export default function HomePage() {
             <Link to="/nominate" className="btn-gold">
               SELF-NOMINATE
             </Link>
-            <Link to="/tickets" className="btn-outline">
+            <a
+              href="https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-outline"
+            >
               BOOK TICKETS
-            </Link>
+            </a>
           </div>
         </div>
       </section>

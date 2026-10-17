@@ -46,13 +46,24 @@ export default function Footer() {
                 { label: 'Categories (50 + 10)', to: '/awards' },
                 { label: 'Self-Nominate', to: '/nominate' },
                 { label: 'Public Voting', to: '/vote' },
-                { label: 'Book Tickets', to: '/tickets' },
+                { label: 'Book Tickets', to: 'https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8', external: true },
                 { label: 'Brand Partners', to: '/sponsors' },
               ].map((l) => (
                 <li key={l.label}>
-                  <Link to={l.to} className="text-[#a99888] hover:text-[#f1d99a] transition-colors">
-                    {l.label}
-                  </Link>
+                  {l.external ? (
+                    <a
+                      href={l.to}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#a99888] hover:text-[#f1d99a] transition-colors"
+                    >
+                      {l.label}
+                    </a>
+                  ) : (
+                    <Link to={l.to} className="text-[#a99888] hover:text-[#f1d99a] transition-colors">
+                      {l.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

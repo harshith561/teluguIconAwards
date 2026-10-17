@@ -7,7 +7,7 @@ const CORE_LINKS = [
   { label: 'Categories', path: '/awards' },
   { label: 'Nominees', path: '/nominees' },
   { label: 'Vote', path: '/vote' },
-  { label: 'Tickets', path: '/tickets', badge: 'Live' },
+  // { label: 'Tickets', path: '/tickets', badge: 'Live' },
 ];
 
 const EXPLORE_LINKS = [
@@ -102,11 +102,10 @@ export default function Navbar() {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`px-3 py-1.5 rounded-xl text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
-                    isActive(link.path)
+                  className={`px-3 py-1.5 rounded-xl text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${isActive(link.path)
                       ? 'text-champagne-400 bg-champagne-500/15 font-semibold border border-champagne-500/30'
                       : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
+                    }`}
                 >
                   <span>{link.label}</span>
                   {link.badge && (
@@ -122,11 +121,10 @@ export default function Navbar() {
                 <button
                   onClick={() => setExploreOpen(!exploreOpen)}
                   onMouseEnter={() => setExploreOpen(true)}
-                  className={`px-3 py-1.5 rounded-xl text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
-                    isExploreActive || exploreOpen
+                  className={`px-3 py-1.5 rounded-xl text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${isExploreActive || exploreOpen
                       ? 'text-champagne-400 bg-champagne-500/15 font-semibold border border-champagne-500/30'
                       : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
+                    }`}
                 >
                   <span>Explore</span>
                   <svg
@@ -154,11 +152,10 @@ export default function Navbar() {
                           key={item.path}
                           to={item.path}
                           onClick={() => setExploreOpen(false)}
-                          className={`flex items-start gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${
-                            isActive(item.path)
+                          className={`flex items-start gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${isActive(item.path)
                               ? 'bg-champagne-500/15 text-champagne-400 font-semibold'
                               : 'text-white/80 hover:bg-white/5 hover:text-white'
-                          }`}
+                            }`}
                         >
                           <span className="text-base shrink-0 mt-0.5">{item.icon}</span>
                           <div>
@@ -175,12 +172,14 @@ export default function Navbar() {
 
             {/* CTAs */}
             <div className="flex items-center space-x-2 shrink-0">
-              <Link
-                to="/tickets"
+              <a
+                href="https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-champagne-400 via-amber-400 to-champagne-500 text-ink-950 font-bold text-[11px] sm:text-xs hover:shadow-gold hover:brightness-105 transition-all whitespace-nowrap"
               >
                 <span>Book Tickets</span>
-              </Link>
+              </a>
               <Link
                 to="/nominate"
                 className="hidden md:inline-flex items-center justify-center px-3.5 py-2 rounded-xl text-xs font-semibold text-champagne-300 border border-champagne-500/40 hover:bg-champagne-500/10 hover:border-champagne-400 transition-all whitespace-nowrap"
@@ -250,13 +249,15 @@ export default function Navbar() {
 
                 {/* Primary Action Buttons */}
                 <div className="grid grid-cols-2 gap-2">
-                  <Link
-                    to="/tickets"
+                  <a
+                    href="https://funzippy.com/revent/the-telugu-digital-creator-celebration/cRVAJfAwrS8"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     onClick={() => setIsOpen(false)}
                     className="py-2 text-center font-bold text-xs rounded-xl bg-champagne-500 text-ink-950 shadow-gold"
                   >
                     🎟️ Tickets
-                  </Link>
+                  </a>
                   <Link
                     to="/nominate"
                     onClick={() => setIsOpen(false)}
@@ -276,11 +277,10 @@ export default function Navbar() {
                       key={link.path}
                       to={link.path}
                       onClick={() => setIsOpen(false)}
-                      className={`w-full px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center justify-between ${
-                        isActive(link.path)
+                      className={`w-full px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center justify-between ${isActive(link.path)
                           ? 'text-champagne-400 bg-champagne-500/15 font-bold border border-champagne-500/20'
                           : 'text-white/70 hover:text-white hover:bg-white/5'
-                      }`}
+                        }`}
                     >
                       <span>{link.label}</span>
                       {link.badge && (
@@ -302,11 +302,10 @@ export default function Navbar() {
                       key={item.path}
                       to={item.path}
                       onClick={() => setIsOpen(false)}
-                      className={`w-full px-3.5 py-2 text-xs font-medium rounded-xl transition-all flex items-center gap-3 ${
-                        isActive(item.path)
+                      className={`w-full px-3.5 py-2 text-xs font-medium rounded-xl transition-all flex items-center gap-3 ${isActive(item.path)
                           ? 'text-champagne-400 bg-champagne-500/15 font-bold'
                           : 'text-white/60 hover:text-white hover:bg-white/5'
-                      }`}
+                        }`}
                     >
                       <span>{item.icon}</span>
                       <span>{item.label}</span>
