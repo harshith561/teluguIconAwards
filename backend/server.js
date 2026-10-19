@@ -90,6 +90,44 @@ app.use('/uploads', (req, res, next) => {
   },
 }));
 
+// Fallback to database `images` table if upload file is not found on disk
+app.use('/uploads', async (req, res, next) => {
+  const filename = path.basename(req.path);
+  if (!filename) return next();
+  try {
+    const { pool } = require('./config/database');
+    const [rows] = await pool.query(
+      'SELECT mime_type, file_size, image_data FROM images WHERE original_filename = ? LIMIT 1',
+      [filename]
+    );
+    if (rows && rows.length > 0 && rows[0].image_data) {
+      res.setHeader('Content-Type', rows[0].mime_type || 'image/jpeg');
+      res.setHeader('Content-Length', rows[0].file_size || rows[0].image_data.length);
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      return res.end(rows[0].image_data);
+    }
+  } catch (_) {}
+
+  // Production uploads fallback: if file exists on live server, stream and cache locally
+  try {
+    const prodUrl = `https://teluguiconawards.in/uploads/${encodeURIComponent(filename)}`;
+    const prodRes = await fetch(prodUrl);
+    if (prodRes.ok) {
+      const buffer = Buffer.from(await prodRes.arrayBuffer());
+      res.setHeader('Content-Type', prodRes.headers.get('content-type') || 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      fs.writeFile(path.join(uploadDir, filename), buffer, () => {});
+      return res.end(buffer);
+    }
+  } catch (_) {}
+
+  next();
+});
+
 // Safe image proxy endpoint for external sponsor logos that lack CORS headers
 app.get('/api/proxy-image', async (req, res) => {
   try {
@@ -102,18 +140,41 @@ app.get('/api/proxy-image', async (req, res) => {
       return res.status(400).send('Invalid protocol');
     }
 
-    const https = parsed.protocol === 'https:' ? require('https') : require('http');
-    https.get(rawUrl, (upstreamRes) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.setHeader('Content-Type', upstreamRes.headers['content-type'] || 'image/png');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      upstreamRes.pipe(res);
-    }).on('error', () => {
-      res.status(502).send('Failed to fetch image');
+    // SSRF prevention: block local / private IP ranges
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.endsWith('.local')
+    ) {
+      return res.status(403).send('Forbidden target');
+    }
+
+    const upstreamRes = await fetch(rawUrl, {
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TeluguIconAwards/1.0',
+        Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      },
     });
+
+    if (!upstreamRes.ok) {
+      return res.status(upstreamRes.status).send('Failed to fetch image');
+    }
+
+    const contentType = upstreamRes.headers.get('content-type') || 'image/png';
+    const buffer = Buffer.from(await upstreamRes.arrayBuffer());
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(buffer);
   } catch (err) {
-    res.status(400).send('Invalid URL');
+    return res.status(502).send('Failed to fetch image');
   }
 });
 
@@ -134,6 +195,7 @@ const awardeeRoutes = require('./routes/awardeeRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
 const sponsorLeadRoutes = require('./routes/sponsorLeadRoutes');
+const imageRoutes = require('./routes/imageRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const nominationStatusRoutes = require('./routes/nominationStatusRoutes');
 
@@ -144,6 +206,7 @@ app.use('/api/nominations', nominationRoutes);
 app.use('/api/votes', voteRoutes);
 app.use('/api/otp', otpRoutes);
 app.use('/api/sponsors', sponsorRoutes);
+app.use('/api/images', imageRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin', adminRoutes);
@@ -278,4 +341,8 @@ const shutdown = async (code) => {
 process.on('SIGTERM', () => shutdown(0));
 process.on('SIGINT', () => shutdown(0));
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = app;

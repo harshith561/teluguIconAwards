@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Grid Check</title>
+</head>
+
+<body style="margin:0; background:#000;">
+  <canvas id="c"></canvas>
+  <script>
+    const img = new Image();
+    img.src = '/brand/master-poster.jpg';
+    img.onload = () => {
+      const c = document.getElementById('c');
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      // Draw horizontal grid lines and Y labels every 50px
+      ctx.lineWidth = 1;
+      ctx.font = '12px sans-serif';
+      for (let y = 0; y < c.height; y += 50) {
+        ctx.strokeStyle = y % 100 === 0 ? 'rgba(0, 255, 255, 0.7)' : 'rgba(255, 255, 0, 0.4)';
+        ctx.fillStyle = y % 100 === 0 ? '#00ffff' : '#ffff00';
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(c.width, y);
+        ctx.stroke();
+        ctx.fillText(y + 'px', 10, y - 2);
+      }
+    };
+  </script>
+</body>
+
+</html>

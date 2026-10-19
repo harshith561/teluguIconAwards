@@ -75,7 +75,7 @@ export const track = (nomineeId, eventType, extra = {}) => {
     headers: { 'Content-Type': 'application/json' },
     body: payload,
     keepalive: true,
-  }).catch(() => {});
+  }).catch(() => { });
 };
 
 // ── Share copy (add-on req. 5) ─────────────────────────────────────────────
@@ -140,12 +140,12 @@ export const downloadQrPng = async (value, filename, size = 1024) => {
   link.remove();
 };
 
-export const qrDataUrl = async (value, size = 512) => {
+export const qrDataUrl = async (value, size = 640) => {
   const QRCode = (await import('qrcode')).default;
   return QRCode.toDataURL(value, {
     width: size,
-    margin: 1,
-    errorCorrectionLevel: 'H',
-    color: { dark: '#0a0a0a', light: '#ffffff' },
+    margin: 2,
+    errorCorrectionLevel: 'M',
+    color: { dark: '#000000', light: '#ffffff' },
   });
 };

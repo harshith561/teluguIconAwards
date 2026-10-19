@@ -97,10 +97,12 @@ router.get('/:id/poster-data', async (req, res) => {
     // Fetch active sponsors specifically mapped to this category
     let [sponsors] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
-              s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
+              s.id, s.id AS sponsor_id, s.name, s.tier, s.image_id,
+              COALESCE(CASE WHEN s.image_id IS NOT NULL THEN CONCAT('/api/images/', s.image_id, '/file') ELSE NULL END, s.logo_url) AS logo_url,
+              s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
          FROM category_sponsors cs
          JOIN sponsors s ON cs.sponsor_id = s.id
-        WHERE cs.category_id = ?
+        WHERE cs.category_id = ? AND s.is_active = 1
         ORDER BY cs.sort_order ASC, s.sort_order ASC, s.id ASC`,
       [nominee.category_id]
     );
@@ -115,7 +117,9 @@ router.get('/:id/poster-data', async (req, res) => {
                 ELSE 'Official Partner'
               END AS role,
               sort_order AS display_order,
-              id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
+              id, id AS sponsor_id, name, tier, image_id,
+              COALESCE(CASE WHEN image_id IS NOT NULL THEN CONCAT('/api/images/', image_id, '/file') ELSE NULL END, logo_url) AS logo_url,
+              website_url, tagline, is_active
          FROM sponsors
         WHERE is_active = 1
         ORDER BY CASE tier

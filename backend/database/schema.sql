@@ -188,22 +188,56 @@ CREATE TABLE IF NOT EXISTS `votes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
+-- IMAGES (Database-driven Binary Image Storage)
+-- =============================================
+CREATE TABLE IF NOT EXISTS `images` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `original_filename` VARCHAR(255) NOT NULL,
+  `mime_type` VARCHAR(100) NOT NULL,
+  `file_size` INT UNSIGNED NOT NULL,
+  `image_data` LONGBLOB NOT NULL,
+  `section` VARCHAR(100) NULL DEFAULT 'general',
+  `entity_type` VARCHAR(100) NULL DEFAULT NULL,
+  `entity_id` INT UNSIGNED NULL DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_images_entity` (`entity_type`, `entity_id`),
+  KEY `idx_images_section` (`section`),
+  KEY `idx_images_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
 -- SPONSORS
 -- =============================================
 CREATE TABLE IF NOT EXISTS `sponsors` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(190) NOT NULL,
+  `sponsor_type` VARCHAR(100) NULL DEFAULT NULL,
   `tier` ENUM('title_partner','powered_by','co_powered_by','gold','silver','category_partner','media_partner','digital_partner','travel_partner') NOT NULL DEFAULT 'gold',
+  `image_id` INT UNSIGNED NULL DEFAULT NULL,
+  `logo` VARCHAR(500) NULL,
   `logo_url` VARCHAR(500) NULL,
   `website_url` VARCHAR(300) NULL,
+  `link` VARCHAR(500) NULL,
+  `category_id` INT UNSIGNED NULL DEFAULT NULL,
   `tagline` VARCHAR(255) NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `sort_order` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sponsors_sponsor_type` (`sponsor_type`),
   KEY `idx_sponsors_tier` (`tier`),
-  KEY `idx_sponsors_active` (`is_active`)
+  KEY `idx_sponsors_active` (`is_active`),
+  KEY `idx_sponsors_image_id` (`image_id`),
+  KEY `idx_sponsors_category_id` (`category_id`),
+  CONSTRAINT `fk_sponsors_image` FOREIGN KEY (`image_id`)
+    REFERENCES `images` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_sponsors_category` FOREIGN KEY (`category_id`)
+    REFERENCES `categories` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- =============================================
 -- CATEGORY SPONSORS (Category-specific sponsor associations)
@@ -532,9 +566,9 @@ INSERT INTO `code_counters` (`name`, `value`) VALUES ('nominee_code', 0)
 -- SEED DATA
 -- =====================================================================
 
--- Default Admin (password: admin123 - bcrypt hash)
+-- Default Admin (password: Admin@tiaawards2026 - bcrypt hash)
 INSERT INTO `users` (`name`, `email`, `password_hash`, `role`) VALUES
-('Super Admin', 'admin@teluguiconawards.com', '$2a$10$v5qVTNqEDchdTshkKu0p..CqrP/nFTDy2UOo0p9eblbschzIAICii', 'super_admin')
+('Super Admin', 'admin@teluguiconawards.com', '$2a$10$ZKLD0mLVZzZG1rnpLR1gCeu1QI3EwMAy.M3ajYGIO4iJZ3yAbwyP.', 'super_admin')
 ON DUPLICATE KEY UPDATE `password_hash` = VALUES(`password_hash`);
 
 -- -------------------------------------------------

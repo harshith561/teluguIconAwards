@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
-import { api } from '../api';
+import { api, getAssetUrl } from '../api';
 
 const TIERS = [
   {
@@ -43,12 +43,30 @@ const TIERS = [
 
 export default function SponsorsPage() {
   const [sponsors, setSponsors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchSponsors = () => {
+    setLoading(true);
+    setError(null);
+    api.get('/sponsors')
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSponsors(data);
+        } else {
+          setSponsors([]);
+        }
+      })
+      .catch((err) => {
+        setError(err.message || 'Unable to load sponsors');
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    api.get('/sponsors').then((data) => {
-      if (Array.isArray(data)) setSponsors(data);
-    }).catch(() => {});
+    fetchSponsors();
   }, []);
+
 
   return (
     <PageTransition>
@@ -185,26 +203,90 @@ export default function SponsorsPage() {
         </div>
       </section>
 
-      {sponsors.length > 0 && (
-        <section className="py-20 bg-ink-800/50">
-          <div className="max-w-6xl mx-auto px-4 text-center">
-            <p className="section-subtitle">Our Partners</p>
-            <h2 className="section-title">Proud Sponsors of 2026</h2>
+      {/* Our Partners Section with Loading, Error, Empty, and Success states */}
+      <section className="py-20 bg-ink-800/50">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <p className="section-subtitle">Our Partners</p>
+          <h2 className="section-title">Proud Sponsors of 2026</h2>
+
+          {loading ? (
             <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-6">
-              {sponsors.map((s) => (
-                <div key={s.id} className="glass-card p-6 group hover:border-champagne-500/40 transition-all duration-300">
-                  {s.logo_url ? (
-                    <img src={s.logo_url} alt={s.name} className="w-full h-12 object-contain grayscale group-hover:grayscale-0 transition-all" />
-                  ) : (
-                    <div className="font-display text-xl font-bold gold-text flex items-center justify-center h-12">{s.name}</div>
-                  )}
-                  <p className="text-white/40 text-xs mt-3">{s.tagline}</p>
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="glass-card p-6 animate-pulse space-y-3 border border-white/5">
+                  <div className="w-full h-12 bg-white/5 rounded-lg" />
+                  <div className="w-2/3 h-3 bg-white/5 rounded mx-auto" />
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
+          ) : error ? (
+            <div className="mt-10 max-w-md mx-auto glass-card p-6 border border-red-500/30 text-center space-y-3">
+              <span className="text-2xl">⚠️</span>
+              <p className="text-sm text-red-300">{error}</p>
+              <button
+                onClick={fetchSponsors}
+                className="btn-outline !py-1.5 !px-4 text-xs font-semibold"
+              >
+                Retry Loading
+              </button>
+            </div>
+          ) : sponsors.length === 0 ? (
+            <div className="mt-10 max-w-lg mx-auto glass-card p-8 border border-white/10 text-center space-y-3">
+              <span className="text-3xl">🤝</span>
+              <h3 className="text-base font-bold text-white">Partner Announcements Underway</h3>
+              <p className="text-xs text-white/50 leading-relaxed">
+                Official title and category brand partners for Telugu Icon Awards 2026 are currently being finalized.
+                Interested brands can apply below to claim category ownership.
+              </p>
+              <a href="/contact" className="inline-block mt-2 btn-gold !py-2 !px-4 text-xs">
+                Partner With Us
+              </a>
+            </div>
+          ) : (
+            <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-6">
+              {sponsors.map((s) => {
+                const CardWrapper = s.website_url ? 'a' : 'div';
+                const wrapperProps = s.website_url
+                  ? { href: s.website_url, target: '_blank', rel: 'noopener noreferrer' }
+                  : {};
+
+                return (
+                  <CardWrapper
+                    key={s.id}
+                    {...wrapperProps}
+                    className="glass-card p-6 group hover:border-champagne-500/40 hover:bg-white/[0.05] transition-all duration-300 block text-center"
+                  >
+                    {s.logo_url || s.image_id ? (
+                      <div className="w-full h-14 flex items-center justify-center p-1">
+                        <img
+                          src={getAssetUrl(s.logo_url || s.image_id)}
+                          alt={s.name}
+                          className="max-h-full max-w-full object-contain grayscale group-hover:grayscale-0 transition-all duration-300"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="48" viewBox="0 0 120 48" fill="%231a1a24"><rect width="120" height="48" fill="%231a1a24"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff50" font-size="12">PARTNER</text></svg>';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="font-display text-lg font-bold gold-text flex items-center justify-center h-14">
+                        {s.name}
+                      </div>
+                    )}
+                    <div className="font-medium text-white text-xs mt-2 truncate group-hover:text-champagne-300 transition-colors">
+                      {s.name}
+                    </div>
+                    {s.tagline && <p className="text-white/40 text-[11px] mt-1 truncate">{s.tagline}</p>}
+                    <span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-champagne-500/10 text-champagne-400 text-[10px] uppercase tracking-wider">
+                      {s.tier.replace(/_/g, ' ')}
+                    </span>
+                  </CardWrapper>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
 
       <section className="py-20 bg-hero-gradient">
         <div className="max-w-3xl mx-auto px-4 text-center">

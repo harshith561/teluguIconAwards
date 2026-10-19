@@ -11,7 +11,7 @@ require('dotenv').config();
 
 const BASE = process.env.SMOKE_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3001}`;
 const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL || 'admin@teluguiconawards.com';
-const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || 'admin123';
+const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || 'Admin@tiaawards2026';
 
 let token = null;
 const failures = [];
@@ -139,8 +139,20 @@ async function main() {
     check(`DELETE /api/admin/nominees/${createdNominee.id}`, await call('DELETE', `/api/admin/nominees/${createdNominee.id}`));
   }
 
-  const sponsor = check('POST /api/admin/sponsors', await call('POST', '/api/admin/sponsors', { name: 'Smoke Sponsor', tier: 'gold' }));
-  if (sponsor && sponsor.id) check(`DELETE /api/admin/sponsors/${sponsor.id}`, await call('DELETE', `/api/admin/sponsors/${sponsor.id}`));
+  const spForm = new FormData();
+  spForm.append('name', 'Smoke Sponsor');
+  spForm.append('sponsor_type', 'Bronze Sponsor');
+  spForm.append('category_id', String(selfCat.id));
+  spForm.append('logo', new Blob([Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2d040000000049454e44ae426082', 'hex')], { type: 'image/png' }), 'smoke.png');
+  const spRes = await fetch(`${BASE}/api/admin/sponsors`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: spForm,
+  });
+  const spJson = await spRes.json().catch(() => ({}));
+  const sponsor = check('POST /api/admin/sponsors', { status: spRes.status, data: spJson });
+  const spId = sponsor?.id || sponsor?.data?.id;
+  if (spId) check(`DELETE /api/admin/sponsors/${spId}`, await call('DELETE', `/api/admin/sponsors/${spId}`));
 
   const lead = check('POST /api/sponsor-leads (readback)', await call('POST', '/api/sponsor-leads', { company: 'Smoke2 Ltd', contact_person: 'T', mobile: '9876543211', email: 'smoke2@test.local' }));
   void lead;

@@ -4,24 +4,23 @@ import { api, getAssetUrl, clearApiCache } from '../../api';
 import ImageUploader from '../../components/ImageUploader';
 import QrBlock from '../../components/QrBlock';
 import { getSiteUrl, downloadQrPng, qrUrl, voteUrl, nomineeUrl, whatsappShareUrl } from '../../lib/nomineeCampaign';
-import PosterTemplatesTab from './PosterTemplatesTab';
-
+import SponsorsTab from './SponsorsTab';
 const TABS = [
   { key: '', label: 'Dashboard', icon: '📊' },
   { key: 'nominations', label: 'Nominations', icon: '📝' },
   { key: 'nominees', label: 'Nominees', icon: '⭐' },
   { key: 'categories', label: 'Categories', icon: '🏷️' },
-  { key: 'poster-templates', label: 'Poster Templates & Sponsors', icon: '🎨' },
+  { key: 'sponsors', label: 'Sponsors', icon: '🤝' },
+  // { key: 'sponsor-leads', label: 'Partner Enquiries', icon: '💼' },
   { key: 'votes', label: 'Votes & Audit', icon: '🗳️' },
   // { key: 'tickets', label: 'Tickets & Entry', icon: '🎟️' },
   { key: 'past-events', label: 'Past Events & Awardees', icon: '🏛️' },
   { key: 'media', label: 'Media & Gallery', icon: '📸' },
-  { key: 'sponsor-leads', label: 'Partner Enquiries', icon: '💼' },
   { key: 'phase', label: 'Event Phase', icon: '⏳' },
   { key: 'audit', label: 'Audit Logs', icon: '🛡️' },
-  { key: 'sponsors', label: 'Sponsors', icon: '🤝' },
   { key: 'settings', label: 'Settings', icon: '⚙️' },
 ];
+
 
 const getChartBarHeightClass = (val, max) => {
   if (!val || !max || max <= 0) return 'h-0';
@@ -257,7 +256,7 @@ export default function AdminDashboard() {
             <Route path="nominations" element={<NominationsTab />} />
             <Route path="nominees" element={<NomineesTab />} />
             <Route path="categories" element={<CategoriesTab />} />
-            <Route path="poster-templates" element={<PosterTemplatesTab />} />
+            <Route path="sponsors" element={<SponsorsTab />} />
             <Route path="votes" element={<VotesTab />} />
             <Route path="tickets" element={<TicketsTab />} />
             <Route path="past-events" element={<PastEventsTab />} />
@@ -265,7 +264,6 @@ export default function AdminDashboard() {
             <Route path="sponsor-leads" element={<SponsorLeadsTab />} />
             <Route path="phase" element={<PhaseTab />} />
             <Route path="audit" element={<AuditTab />} />
-            <Route path="sponsors" element={<SponsorsTab />} />
             <Route path="settings" element={<SettingsTab />} />
           </Routes>
         </div>
@@ -1480,12 +1478,6 @@ function MyCampaignPanel({ nominee, onClose }) {
           >
             ⬇ DOWNLOAD CAMPAIGN MATERIAL
           </a>
-          <Link
-            to={`/admin/poster-templates?category=${record.category_id}&nominee=${record.id}`}
-            className="btn-outline !py-2 !px-3 !text-xs"
-          >
-            🎨 PREVIEW &amp; REGENERATE POSTER
-          </Link>
           <a
             href={officialUrl}
             target="_blank"
@@ -1851,8 +1843,7 @@ function CategoriesTab() {
                   </button>
                 </div>
                 <div className="flex items-center justify-end gap-2 text-xs">
-                  <Link to={`/admin/poster-templates?category=${c.id}`} className="text-champagne-400 hover:text-champagne-300 font-medium">🎨 Poster &amp; Sponsors</Link>
-                  <button onClick={() => setEditingCategory(c)} className="text-champagne-400 hover:text-champagne-300 font-medium ml-2">Edit ✏️</button>
+                  <button onClick={() => setEditingCategory(c)} className="text-champagne-400 hover:text-champagne-300 font-medium">Edit ✏️</button>
                   <button onClick={() => handleDeleteCategory(c.id, c.name)} className="text-burgundy-400 hover:text-burgundy-300 font-medium ml-2">Delete 🗑️</button>
                 </div>
               </div>
@@ -1989,225 +1980,6 @@ function VotesTab() {
                       >
                         Delete 🗑️
                       </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SponsorsTab() {
-  const [sponsors, setSponsors] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', tier: 'gold', website_url: '', tagline: '', logo_url: '' });
-  const [editingSponsor, setEditingSponsor] = useState(null);
-  const [message, setMessage] = useState(null);
-
-  const load = (force = false) => {
-    setLoading(true);
-    api.get('/admin/sponsors', { force })
-      .then((data) => {
-        if (Array.isArray(data)) setSponsors(data);
-      })
-      .catch(() => { })
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => { load(); }, []);
-
-  const createSponsor = async (e) => {
-    e.preventDefault();
-    const res = await api.post('/admin/sponsors', form);
-    setMessage({ type: 'success', text: res.message || 'Sponsor created' });
-    setForm({ name: '', tier: 'gold', website_url: '', tagline: '', logo_url: '' });
-    load();
-    setTimeout(() => setMessage(null), 3000);
-  };
-
-  const updateSponsor = async (e) => {
-    e.preventDefault();
-    if (!editingSponsor) return;
-    const res = await api.put(`/admin/sponsors/${editingSponsor.id}`, editingSponsor);
-    setMessage({ type: 'success', text: res.message || 'Sponsor updated' });
-    setEditingSponsor(null);
-    load();
-    setTimeout(() => setMessage(null), 3000);
-  };
-
-  const deleteSponsor = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this sponsor?')) return;
-    const res = await api.delete(`/admin/sponsors/${id}`);
-    setMessage({ type: 'success', text: res.message || 'Sponsor deleted' });
-    load();
-    setTimeout(() => setMessage(null), 3000);
-  };
-
-  const toggleActive = async (s) => {
-    await api.put(`/admin/sponsors/${s.id}`, { is_active: !s.is_active });
-    load();
-  };
-
-  return (
-    <div className="space-y-6">
-      {message && (
-        <div className="px-4 py-3 rounded-xl text-sm bg-emerald-900/30 border border-emerald-500/40 text-emerald-200">{message.text}</div>
-      )}
-
-      {/* Edit Sponsor Modal */}
-      {editingSponsor && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-card max-w-lg w-full p-6 space-y-4 border border-champagne-500/40">
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <h3 className="font-bold text-white text-sm">Edit Sponsor: {editingSponsor.name}</h3>
-              <button onClick={() => setEditingSponsor(null)} className="text-white/60 hover:text-white">✕</button>
-            </div>
-            <form onSubmit={updateSponsor} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-white/70 mb-1">Brand Name *</label>
-                <input
-                  type="text"
-                  value={editingSponsor.name}
-                  onChange={(e) => setEditingSponsor({ ...editingSponsor, name: e.target.value })}
-                  required
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-white/70 mb-1">Partnership Tier</label>
-                <select
-                  value={editingSponsor.tier}
-                  onChange={(e) => setEditingSponsor({ ...editingSponsor, tier: e.target.value })}
-                  className="input-field"
-                >
-                  {['title_partner', 'powered_by', 'co_powered_by', 'gold', 'silver', 'category_partner', 'media_partner', 'digital_partner', 'travel_partner'].map((t) => (
-                    <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-white/70 mb-1">Website URL</label>
-                <input
-                  type="url"
-                  value={editingSponsor.website_url || ''}
-                  onChange={(e) => setEditingSponsor({ ...editingSponsor, website_url: e.target.value })}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-white/70 mb-1">Tagline</label>
-                <input
-                  type="text"
-                  value={editingSponsor.tagline || ''}
-                  onChange={(e) => setEditingSponsor({ ...editingSponsor, tagline: e.target.value })}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <ImageUploader
-                  label="Brand Logo (Upload File)"
-                  value={editingSponsor.logo_url || ''}
-                  onChange={(url) => setEditingSponsor({ ...editingSponsor, logo_url: url })}
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setEditingSponsor(null)} className="px-3 py-1.5 rounded-lg bg-white/10 text-white/70">Cancel</button>
-                <button type="submit" className="btn-gold !py-1.5 text-xs">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-xl font-bold text-white">Add Official Brand Partner</h2>
-          <button
-            type="button"
-            onClick={() => load(true)}
-            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs border border-white/10 flex items-center gap-1"
-            title="Reload Sponsors"
-          >
-            <span>🔄</span> Refresh
-          </button>
-        </div>
-        <form onSubmit={createSponsor} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Sponsor Brand Name *" className="input-field" required />
-            <select value={form.tier} onChange={(e) => setForm({ ...form, tier: e.target.value })} className="input-field">
-              {['title_partner', 'powered_by', 'co_powered_by', 'gold', 'silver', 'category_partner', 'media_partner', 'digital_partner', 'travel_partner'].map((t) => (
-                <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-            <input type="url" value={form.website_url} onChange={(e) => setForm({ ...form, website_url: e.target.value })} placeholder="Website URL (optional)" className="input-field" />
-            <input type="text" value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} placeholder="Tagline (optional)" className="input-field" />
-          </div>
-
-          <div>
-            <ImageUploader
-              label="Brand Partner Logo (Upload File)"
-              value={form.logo_url}
-              onChange={(url) => setForm({ ...form, logo_url: url })}
-            />
-          </div>
-
-          <div className="text-right">
-            <button type="submit" className="btn-gold !py-2.5 text-xs">+ Save Sponsor</button>
-          </div>
-        </form>
-      </div>
-      <div className="glass-card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-ink-800/50">
-              <tr className="text-white/40 text-xs uppercase">
-                <th className="px-4 py-4 text-left">Brand</th>
-                <th className="px-4 py-4 text-left">Tier</th>
-                <th className="px-4 py-4 text-left">Website</th>
-                <th className="px-4 py-4 text-left">Active</th>
-                <th className="px-4 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && sponsors.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-12 text-center text-white/40">Loading official partners...</td></tr>
-              ) : sponsors.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-12 text-center text-white/40">No sponsors yet. Use form above to add partners.</td></tr>
-              ) : (
-                sponsors.map((s) => (
-                  <tr key={s.id} className="border-t border-white/5 hover:bg-white/[0.02]">
-                    <td className="px-4 py-4 text-white font-medium">
-                      <div className="flex items-center gap-3">
-                        {s.logo_url ? (
-                          <div className="w-10 h-10 rounded-lg bg-white/5 p-1 border border-white/10 flex items-center justify-center shrink-0">
-                            <img src={getAssetUrl(s.logo_url)} className="max-w-full max-h-full object-contain" alt="" />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs text-white/40 shrink-0">
-                            🤝
-                          </div>
-                        )}
-                        <div>
-                          <div>{s.name}</div>
-                          {s.tagline && <div className="text-[10px] text-white/40">{s.tagline}</div>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="px-2.5 py-1 rounded-full bg-champagne-500/15 text-champagne-400 text-xs">{s.tier.replace('_', ' ')}</span>
-                    </td>
-                    <td className="px-4 py-4 text-white/40 text-xs">{s.website_url || '—'}</td>
-                    <td className="px-4 py-4">
-                      <button onClick={() => toggleActive(s)} className={`text-xs font-medium ${s.is_active ? 'text-emerald-400' : 'text-white/30'}`}>
-                        {s.is_active ? '● Active' : '○ Inactive'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-4 text-right space-x-2">
-                      <button onClick={() => setEditingSponsor(s)} className="text-champagne-400 hover:text-champagne-300 text-xs font-medium">Edit ✏️</button>
-                      <button onClick={() => deleteSponsor(s.id)} className="text-burgundy-400 hover:text-burgundy-300 text-xs font-medium">Delete 🗑️</button>
                     </td>
                   </tr>
                 ))
@@ -3183,8 +2955,6 @@ function SponsorLeadsTab() {
           <div className="divide-y divide-white/5">
             {leads.map((lead) => (
               <div key={lead.id} className={`py-4 ${lead.is_read ? 'opacity-70' : ''}`}>
-                {/* flex-wrap lets the action buttons drop below the details on a
-                    narrow screen instead of squeezing the row. */}
                 <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">

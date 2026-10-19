@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Coords</title></head>
+<body style="margin:0; background:#222; color:#fff;">
+<canvas id="c"></canvas>
+<div id="info" style="padding:10px; font-family:monospace; font-size: 20px;"></div>
+<script>
+  const img = new Image();
+  img.src = '/brand/master-poster.jpg';
+  img.onload = () => {
+    const c = document.getElementById('c');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    
+    // Find gold pixels around center X
+    const cx = Math.floor(c.width / 2);
+    let badgeY = [];
+    const idata = ctx.getImageData(0, 0, c.width, c.height).data;
+    for (let y = 0; y < c.height; y++) {
+      const idx = (y * c.width + cx) * 4;
+      const r = idata[idx], g = idata[idx+1], b = idata[idx+2];
+      // Check for gold pill badge (r > 200, g > 150, b < 100)
+      if (r > 190 && g > 140 && b < 110) {
+        badgeY.push(y);
+      }
+    }
+    const min = Math.min(...badgeY);
+    const max = Math.max(...badgeY);
+    document.getElementById('info').innerText = 'Width: ' + c.width + ' Height: ' + c.height + ' Badge Y range: ' + min + ' to ' + max;
+  };
+</script>
+</body>
+</html>

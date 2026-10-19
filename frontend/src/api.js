@@ -7,16 +7,43 @@ export const API_BASE = rawEnv
       ? '/api'
       : (import.meta.env.DEV ? '/api' : PROD_API_URL));
 
+export const getImageUrl = (id) => {
+  if (!id) return '';
+  if (typeof id === 'string' && (id.startsWith('http://') || id.startsWith('https://') || id.startsWith('/'))) {
+    return getAssetUrl(id);
+  }
+  return `${API_BASE}/images/${id}/file`;
+};
+
 export const getAssetUrl = (url) => {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  if (typeof url === 'number' || /^\d+$/.test(String(url).trim())) {
+    return `${API_BASE}/images/${String(url).trim()}/file`;
+  }
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
   const cleanPath = url.startsWith('/') ? url : `/${url}`;
+
+  // If already pointing to API route (e.g. /api/images/1/file)
+  if (cleanPath.startsWith('/api/')) {
+    if (API_BASE === '/api' || (typeof window !== 'undefined' && window.location.port === '5173')) {
+      return cleanPath;
+    }
+    const origin = API_BASE.endsWith('/api') ? API_BASE.slice(0, -4) : API_BASE;
+    return origin ? `${origin}${cleanPath}` : cleanPath;
+  }
+
   const origin = API_BASE.endsWith('/api') ? API_BASE.slice(0, -4) : API_BASE;
   if (origin && origin !== '/api') {
     return `${origin}${cleanPath}`;
   }
+  if (typeof window !== 'undefined' && window.location.port === '5173') {
+    return cleanPath;
+  }
   return `https://teluguiconawards.in${cleanPath}`;
 };
+
 
 // In-memory response cache for lightning-fast tab navigation
 const memoryCache = new Map();
@@ -126,18 +153,36 @@ export const api = {
     return withStatus(res);
   },
 
-  upload: async (file) => {
+  putMultipart: async (url, formData) => {
     clearApiCache();
-    const formData = new FormData();
-    formData.append('image', file);
     const token = localStorage.getItem('admin_token');
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/admin/upload`, {
+    const res = await fetch(`${API_BASE}${url}`, {
+      method: 'PUT',
+      headers,
+      body: formData,
+    });
+    return withStatus(res);
+  },
+
+  upload: async (file, options = {}) => {
+    clearApiCache();
+    const formData = new FormData();
+    formData.append('image', file);
+    if (options.section) formData.append('section', options.section);
+    if (options.entity_type) formData.append('entity_type', options.entity_type);
+    if (options.entity_id) formData.append('entity_id', options.entity_id);
+
+    const token = localStorage.getItem('admin_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/images`, {
       method: 'POST',
       headers,
       body: formData,
     });
     return withStatus(res);
   },
-};
+};

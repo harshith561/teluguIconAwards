@@ -70,7 +70,7 @@ async function check(name, method, url, body, opts = {}) {
   // ---- AUTH ----
   const badLogin = await req('POST', '/api/auth/login', { email: 'x@x.com', password: 'wrong' });
   results.push({ name: 'POST /api/auth/login (bad creds 401)', status: badLogin.status, ok: badLogin.status === 401, detail: 'rejected' });
-  const goodLogin = await req('POST', '/api/auth/login', { email: 'admin@teluguiconawards.com', password: 'admin123' });
+  const goodLogin = await req('POST', '/api/auth/login', { email: 'admin@teluguiconawards.com', password: 'Admin@tiaawards2026' });
   results.push({ name: 'POST /api/auth/login (admin)', status: goodLogin.status, ok: !!goodLogin.data.token && goodLogin.data.user.role === 'super_admin', detail: goodLogin.data.user && goodLogin.data.user.email });
   if (goodLogin.data.token) token = goodLogin.data.token;
 
@@ -119,7 +119,8 @@ async function check(name, method, url, body, opts = {}) {
   results.push({ name: 'GET /api/admin/votes', status: votes.status, ok: Array.isArray(votes.data), detail: `${votes.data.length} votes` });
 
   const spoAdm = await req('GET', '/api/admin/sponsors', null, true);
-  results.push({ name: 'GET /api/admin/sponsors', status: spoAdm.status, ok: Array.isArray(spoAdm.data), detail: `${spoAdm.data.length} sponsors` });
+  const spoAdmList = Array.isArray(spoAdm.data) ? spoAdm.data : (Array.isArray(spoAdm.data?.data) ? spoAdm.data.data : []);
+  results.push({ name: 'GET /api/admin/sponsors', status: spoAdm.status, ok: Array.isArray(spoAdm.data) || Array.isArray(spoAdm.data?.data), detail: `${spoAdmList.length} sponsors` });
 
   const setAdm = await req('GET', '/api/admin/settings', null, true);
   results.push({ name: 'GET /api/admin/settings', status: setAdm.status, ok: Array.isArray(setAdm.data), detail: `${setAdm.data.length} settings` });

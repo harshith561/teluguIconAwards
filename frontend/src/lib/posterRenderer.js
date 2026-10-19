@@ -1,9 +1,28 @@
 import JSZip from 'jszip';
-import { getAssetUrl } from '../api';
+import { getAssetUrl, API_BASE, api } from '../api';
 import { nomineeUrl, qrUrl, voteUrl, EVENT, EVENT_HASHTAGS } from './nomineeCampaign';
 
+// ── Dynamic Filename Utilities ─────────────────────────────────────────────
+// Requirement: CandidateName_FunctionName.png
+export const sanitizeFilenamePart = (value, fallback) => {
+  const sanitized = String(value ?? '')
+    .normalize('NFKC')
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/[. ]+$/g, '')
+    .replace(/^_+|_+$/g, '');
+  return sanitized || fallback;
+};
+
+export const createPosterFilename = (candidateName, functionName) => {
+  const candidate = sanitizeFilenamePart(candidateName, 'Nominee');
+  const awardFunction = sanitizeFilenamePart(functionName, 'Award_Category');
+  return `${candidate}_${awardFunction}.png`;
+};
+
 export const POSTER_WIDTH = 1080;
-export const POSTER_HEIGHT = 1350; // 4:5 Instagram Portrait
+export const POSTER_HEIGHT = 1620; // 2:3 ratio matching 682x1024 master artwork
 export const STORY_WIDTH = 1080;
 export const STORY_HEIGHT = 1920;  // 9:16 Instagram Story
 
@@ -587,16 +606,17 @@ export const drawTrophyCup = (ctx, x, y, w, h, primaryColor = '#D4AF37') => {
   ctx.restore();
 };
 
-// ── Multi-Stage Image Loader (CORS anonymous -> direct -> proxy) ──────────
+// ── Multi-Stage Image Loader (CORS anonymous -> proxy) ────────────────────
 export const loadImage = (src, timeoutMs = 6000) => {
-  if (!src) return Promise.resolve(null);
+  if (!src || typeof src !== 'string') return Promise.resolve(null);
+  const cleanSrc = src.trim();
+  if (!cleanSrc) return Promise.resolve(null);
 
-  const tryLoad = (url, useCors) =>
+  const tryLoad = (url) =>
     new Promise((resolve) => {
       const img = new Image();
-      if (useCors) {
-        img.crossOrigin = 'anonymous';
-      }
+      img.crossOrigin = 'anonymous';
+
       let timer = setTimeout(() => {
         img.onload = null;
         img.onerror = null;
@@ -614,251 +634,561 @@ export const loadImage = (src, timeoutMs = 6000) => {
       img.src = url;
     });
 
-  // Stage 1: Anonymous CORS
-  return tryLoad(src, true).then((img) => {
+  // Stage 1: Anonymous CORS load
+  return tryLoad(cleanSrc).then((img) => {
     if (img) return img;
-    // Stage 2: Direct non-CORS fallback
-    return tryLoad(src, false).then((nonCorsImg) => {
-      if (nonCorsImg) return nonCorsImg;
-      // Stage 3: Proxy fallback for external URLs
-      if (typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
-        const proxied = `/api/proxy-image?url=${encodeURIComponent(src)}`;
-        return tryLoad(proxied, true);
-      }
-      return null;
-    });
+
+    // Stage 2: If direct CORS failed and this is an external HTTP/HTTPS URL,
+    // route through the backend proxy (/api/proxy-image?url=...) which serves with CORS headers.
+    // Note: We deliberately do NOT fall back to loading without CORS, because drawing a non-CORS
+    // image onto an HTML canvas taints it and causes toDataURL() / toBlob() to throw SecurityError.
+    if (cleanSrc.startsWith('http://') || cleanSrc.startsWith('https://')) {
+      const proxyBase = API_BASE === '/api' ? '/api' : (API_BASE ? API_BASE.replace(/\/+$/, '') : '/api');
+      const proxied = `${proxyBase}/proxy-image?url=${encodeURIComponent(cleanSrc)}`;
+      return tryLoad(proxied);
+    }
+    return null;
   });
 };
 
-// ── Nominee Monogram Avatar (When photo is missing) ────────────────────────
-const drawMonogramAvatar = (ctx, cx, cy, radius, name, color, S) => {
-  const grad = ctx.createRadialGradient(cx, cy, 20 * S, cx, cy, radius);
-  grad.addColorStop(0, '#261b11');
-  grad.addColorStop(0.6, '#17100b');
+// ── Neutral Nominee Portrait Fallback (When photo is unavailable) ─────────
+// Renders an elegant luxury 3D gold avatar silhouette so missing photos look prestigious rather than empty
+export const drawNeutralPortraitFallback = (ctx, cx, cy, radius, color, S) => {
+  const grad = ctx.createRadialGradient(cx, cy, 10 * S, cx, cy, radius);
+  grad.addColorStop(0, '#1c150e');
+  grad.addColorStop(0.5, '#120d08');
   grad.addColorStop(1, '#080503');
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Outer laurel frame inside ring
-  ctx.strokeStyle = color;
+  // Elegant default golden avatar silhouette
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - 2 * S, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Avatar Head
+  const headRadius = radius * 0.32;
+  const headCy = cy - radius * 0.18;
+  const avatarGrad = ctx.createLinearGradient(cx, headCy - headRadius, cx, cy + radius);
+  avatarGrad.addColorStop(0, '#FFF2BF');
+  avatarGrad.addColorStop(0.4, '#D4AF37');
+  avatarGrad.addColorStop(1, '#8A6412');
+
+  ctx.fillStyle = avatarGrad;
+  ctx.beginPath();
+  ctx.arc(cx, headCy, headRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Avatar Bust / Shoulders
+  const bustCy = cy + radius * 0.48;
+  const bustRx = radius * 0.68;
+  const bustRy = radius * 0.46;
+  ctx.beginPath();
+  ctx.ellipse(cx, bustCy, bustRx, bustRy, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Subtle luxury inner golden trim
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.5)';
   ctx.lineWidth = 1.5 * S;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+};
+
+// Backward-compatible alias that adheres strictly to the neutral fallback standard
+export const drawMonogramAvatar = (ctx, cx, cy, radius, name, color, S) => {
+  return drawNeutralPortraitFallback(ctx, cx, cy, radius, color, S);
+};
+
+// ── Procedural 3D Golden Awards Trophy (Standing Star Column) ─────────────
+export const drawProcedural3DTrophy = (ctx, x, y, w, h, primaryColor = '#D4AF37') => {
+  ctx.save();
+  ctx.translate(x, y);
+  const sx = w / 100;
+  const sy = h / 200;
+  ctx.scale(sx, sy);
+
+  // 1. Soft gold radial glow behind star
+  const glow = ctx.createRadialGradient(50, 32, 5, 50, 32, 45);
+  glow.addColorStop(0, 'rgba(255, 235, 150, 0.5)');
+  glow.addColorStop(0.5, 'rgba(212, 175, 55, 0.2)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(50, 32, 45, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. Stepped Pedestal Base (Black & Gold)
+  // Sub-base
+  ctx.fillStyle = '#0a0805';
+  drawRoundedRect(ctx, 20, 185, 60, 14, 2);
+  ctx.fill();
+  ctx.strokeStyle = primaryColor;
+  ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Draw majestic golden trophy cup in avatar center
-  const cupSize = radius * 1.05;
-  drawTrophyCup(ctx, cx - cupSize / 2, cy - cupSize / 2 - 10 * S, cupSize, cupSize, color);
+  // Gold trim tier
+  const goldGrad = ctx.createLinearGradient(25, 0, 75, 0);
+  goldGrad.addColorStop(0, '#8A6412');
+  goldGrad.addColorStop(0.3, '#FFF5BA');
+  goldGrad.addColorStop(0.7, primaryColor);
+  goldGrad.addColorStop(1, '#5A4109');
+  ctx.fillStyle = goldGrad;
+  ctx.beginPath();
+  ctx.moveTo(25, 185);
+  ctx.lineTo(75, 185);
+  ctx.lineTo(70, 175);
+  ctx.lineTo(30, 175);
+  ctx.closePath();
+  ctx.fill();
 
-  // Nominee Initials
-  const initials = String(name || 'TI')
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('') || 'TI';
+  // Upper pedestal cylinder
+  drawRoundedRect(ctx, 32, 162, 36, 13, 2);
+  ctx.fill();
 
+  // 3. Spiraling Twisted Dual-Ribbon Gold Column
+  const ribbonCount = 5;
+  for (let r = 0; r < ribbonCount; r++) {
+    const t0 = 60 + r * 20;
+    const t1 = t0 + 20;
+    const isOdd = r % 2 === 1;
+
+    const rGrad = ctx.createLinearGradient(35, t0, 65, t1);
+    if (isOdd) {
+      rGrad.addColorStop(0, '#5A4109');
+      rGrad.addColorStop(0.5, '#D4AF37');
+      rGrad.addColorStop(1, '#FFF5BA');
+    } else {
+      rGrad.addColorStop(0, '#FFF5BA');
+      rGrad.addColorStop(0.5, '#FCD34D');
+      rGrad.addColorStop(1, '#8A6412');
+    }
+
+    ctx.fillStyle = rGrad;
+    ctx.beginPath();
+    ctx.moveTo(42, t0);
+    ctx.bezierCurveTo(24, t0 + 10, 26, t1 - 10, 48, t1);
+    ctx.lineTo(58, t1);
+    ctx.bezierCurveTo(36, t1 - 10, 34, t0 + 10, 52, t0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Opposite strand
+    ctx.beginPath();
+    ctx.moveTo(58, t0);
+    ctx.bezierCurveTo(76, t0 + 10, 74, t1 - 10, 52, t1);
+    ctx.lineTo(42, t1);
+    ctx.bezierCurveTo(64, t1 - 10, 66, t0 + 10, 48, t0);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Column collar node under the star
+  ctx.fillStyle = goldGrad;
+  ctx.beginPath();
+  ctx.ellipse(50, 56, 14, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. Faceted 5-Pointed Golden Star on Top
+  const starCx = 50;
+  const starCy = 30;
+  const outerR = 24;
+  const innerR = 10;
+  const points = 5;
+
+  // Star Points Calculation
+  const pts = [];
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (i * Math.PI) / points - Math.PI / 2;
+    pts.push([starCx + r * Math.cos(angle), starCy + r * Math.sin(angle)]);
+  }
+
+  // Draw faceted star triangles with alternating gold gradients
+  for (let i = 0; i < pts.length; i++) {
+    const next = (i + 1) % pts.length;
+    const triGrad = ctx.createLinearGradient(starCx, starCy, pts[i][0], pts[i][1]);
+    if (i % 2 === 0) {
+      triGrad.addColorStop(0, '#FFF5BA');
+      triGrad.addColorStop(0.5, '#FCD34D');
+      triGrad.addColorStop(1, '#D4AF37');
+    } else {
+      triGrad.addColorStop(0, '#8A6412');
+      triGrad.addColorStop(0.7, '#D4AF37');
+      triGrad.addColorStop(1, '#FFF5BA');
+    }
+    ctx.fillStyle = triGrad;
+    ctx.beginPath();
+    ctx.moveTo(starCx, starCy);
+    ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.lineTo(pts[next][0], pts[next][1]);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 5. Star Specular Highlights & Diamond Sparkles
   ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `bold ${22 * S}px "Cinzel", Georgia, serif`;
-  ctx.fillText(initials, cx, cy + radius * 0.58);
-  ctx.textBaseline = 'alphabetic'; // Reset
+  ctx.beginPath();
+  ctx.arc(starCx, starCy, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Diamond Sparkle Ray Top-Right
+  const sparkX = starCx + 16;
+  const sparkY = starCy - 14;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.moveTo(sparkX, sparkY - 9);
+  ctx.lineTo(sparkX + 2, sparkY - 2);
+  ctx.lineTo(sparkX + 9, sparkY);
+  ctx.lineTo(sparkX + 2, sparkY + 2);
+  ctx.lineTo(sparkX, sparkY + 9);
+  ctx.lineTo(sparkX - 2, sparkY + 2);
+  ctx.lineTo(sparkX - 9, sparkY);
+  ctx.lineTo(sparkX - 2, sparkY - 2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
 };
 
-// ── Category Sponsors Section (Always Guaranteed Logo or Trophy Cup Image) ─
-const drawSponsorsSection = async (ctx, sponsors, cx, startY, maxWidth, S, primaryColor) => {
+// ── 6 Official Categories Tier Definitions (Matching Reference Poster) ────
+export const OFFICIAL_CATEGORIES_TIERS = [
+  { icon: '★', label: 'GOLD', sub: 'Title Partner', iconColor: '#FFDF73' },
+  { icon: '◆', label: 'SILVER', sub: 'Co Powered By', iconColor: '#E2E8F0' },
+  { icon: '🏆', label: 'CATEGORY', sub: 'PARTNER', iconColor: '#F59E0B' },
+  { icon: '▶', label: 'MEDIA', sub: 'PARTNER', iconColor: '#EF4444' },
+  { icon: '✈', label: 'DIGITAL', sub: 'PARTNER', iconColor: '#38BDF8' },
+  { icon: '🌐', label: 'TRAVEL', sub: 'PARTNER', iconColor: '#10B981' },
+];
+
+// ── Master 16 Sponsor Slot Positions on 682 x 1024 Base Canvas ─────────────
+export const SPONSOR_SLOTS = [
+  // Row 0
+  { index: 0, name: 'Growth', x: 51, y: 560, w: 136, h: 44 },
+  { index: 1, name: 'CMR', x: 197, y: 560, w: 136, h: 44 },
+  { index: 2, name: 'VEGA', x: 349, y: 560, w: 136, h: 44 },
+  { index: 3, name: 'EUPHORIA', x: 495, y: 560, w: 136, h: 44 },
+  // Row 1
+  { index: 4, name: 'PRIYA GOLD', x: 51, y: 612, w: 136, h: 44 },
+  { index: 5, name: 'happi', x: 197, y: 612, w: 136, h: 44 },
+  { index: 6, name: 'Srichakra', x: 349, y: 612, w: 136, h: 44 },
+  { index: 7, name: 'MAHAA NEWS', x: 495, y: 612, w: 136, h: 44 },
+  // Row 2
+  { index: 8, name: 'NEXGEN INFRA', x: 51, y: 664, w: 136, h: 44 },
+  { index: 9, name: 'mediafx', x: 197, y: 664, w: 136, h: 44 },
+  { index: 10, name: 'DESIGNO', x: 349, y: 664, w: 136, h: 44 },
+  { index: 11, name: 'KLIX', x: 495, y: 664, w: 136, h: 44 },
+  // Row 3
+  { index: 12, name: "VEERU'S", x: 51, y: 716, w: 136, h: 44 },
+  { index: 13, name: 'SBI', x: 197, y: 716, w: 136, h: 44 },
+  { index: 14, name: 'SOUTH INDIA', x: 349, y: 716, w: 136, h: 44 },
+  { index: 15, name: 'KLM', x: 495, y: 716, w: 136, h: 44 },
+];
+
+// ── 16 Official Reference Sponsor Brands (Matching Reference Poster) ───────
+export const REFERENCE_SPONSORS = [
+  { id: 'ref-0', sponsor_id: 'ref-0', slotIndex: 0, name: 'Growth', sub: '', tagline: 'INNOVATE • INSPIRE • ACHIEVE', color: '#00875A', is_active: 1 },
+  { id: 'ref-1', sponsor_id: 'ref-1', slotIndex: 1, name: 'CMR', sub: 'SHOPPING MALL', tagline: 'The joy of life', color: '#0052CC', is_active: 1 },
+  { id: 'ref-2', sponsor_id: 'ref-2', slotIndex: 2, name: 'VEGA', sub: 'JEWELLERS', tagline: 'ANDHRA PRADESH | TELANGANA | USA', color: '#B38728', is_active: 1 },
+  { id: 'ref-3', sponsor_id: 'ref-3', slotIndex: 3, name: 'EUPHORIA', sub: '', tagline: 'GET YOUR GLOW ON!', color: '#FFAB00', is_active: 1 },
+  { id: 'ref-4', sponsor_id: 'ref-4', slotIndex: 4, name: 'PRIYA GOLD', sub: '', tagline: 'Edible Oils', color: '#DE350B', is_active: 1 },
+  { id: 'ref-5', sponsor_id: 'ref-5', slotIndex: 5, name: 'happi', sub: '', tagline: 'Mobiles | Accessories | Service', color: '#FF5630', is_active: 1 },
+  { id: 'ref-6', sponsor_id: 'ref-6', slotIndex: 6, name: 'Srichakra', sub: 'MILKS', tagline: '', color: '#36B37E', is_active: 1 },
+  { id: 'ref-7', sponsor_id: 'ref-7', slotIndex: 7, name: 'MAHAA NEWS', sub: '', tagline: '', color: '#BF2600', is_active: 1 },
+  { id: 'ref-8', sponsor_id: 'ref-8', slotIndex: 8, name: 'NEXGEN INFRA', sub: '', tagline: 'Developers & Promoters', color: '#0052CC', is_active: 1 },
+  { id: 'ref-9', sponsor_id: 'ref-9', slotIndex: 9, name: 'mediafx', sub: '', tagline: '#1 Telugu & English GenZ Mobile App', color: '#6554C0', is_active: 1 },
+  { id: 'ref-10', sponsor_id: 'ref-10', slotIndex: 10, name: 'DESIGNO', sub: '', tagline: '', color: '#172B4D', is_active: 1 },
+  { id: 'ref-11', sponsor_id: 'ref-11', slotIndex: 11, name: 'KLIX', sub: '', tagline: 'FASHION | ACCESSORIES', color: '#0065FF', is_active: 1 },
+  { id: 'ref-12', sponsor_id: 'ref-12', slotIndex: 12, name: "VEERU'S", sub: '', tagline: 'MULTI CUISINE RESTAURANT', color: '#172B4D', is_active: 1 },
+  { id: 'ref-13', sponsor_id: 'ref-13', slotIndex: 13, name: 'SBI', sub: '', tagline: 'The banker to every indian', color: '#00A3BF', is_active: 1 },
+  { id: 'ref-14', sponsor_id: 'ref-14', slotIndex: 14, name: 'SOUTH INDIA', sub: 'shopping mall', tagline: 'Textiles | Jewellery', color: '#403294', is_active: 1 },
+  { id: 'ref-15', sponsor_id: 'ref-15', slotIndex: 15, name: 'KLM', sub: 'FASHION MALL', tagline: 'KEEP LOVING MORE', color: '#FF8B00', is_active: 1 },
+];
+
+// ── Section 1: "OUR OFFICIAL CATEGORIES" Strip ─────────────────────────────
+export const drawOfficialCategoriesSection = (ctx, cx, startY, maxWidth, S, primaryColor) => {
+  const lineY = startY;
+
+  // Title: "—— OUR OFFICIAL CATEGORIES ——"
   ctx.textAlign = 'center';
+  ctx.fillStyle = primaryColor || '#D4AF37';
+  ctx.font = `bold ${12 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
+  ctx.letterSpacing = `${2 * S}px`;
+  const headingText = 'OUR OFFICIAL CATEGORIES';
+  const headingW = ctx.measureText(headingText).width;
 
-  const count = sponsors && sponsors.length ? sponsors.length : 0;
+  const ruleW = (maxWidth - headingW - 40 * S) / 2;
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.45)';
+  ctx.lineWidth = 1 * S;
 
-  // 1. Prominent Section Header
-  ctx.fillStyle = primaryColor;
-  ctx.font = `bold ${12.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.letterSpacing = `${3 * S}px`;
-  const headerText = count > 1
-    ? `OFFICIAL CATEGORY PARTNERS`
-    : count === 1
-    ? (sponsors[0].role || 'CATEGORY PARTNER').toUpperCase()
-    : 'OFFICIAL CATEGORY PARTNER';
-  ctx.fillText(headerText, cx, startY);
+  // Left rule line
+  ctx.beginPath();
+  ctx.moveTo(cx - maxWidth / 2, lineY);
+  ctx.lineTo(cx - headingW / 2 - 16 * S, lineY);
+  ctx.stroke();
+
+  // Heading text
+  ctx.textBaseline = 'middle';
+  ctx.fillText(headingText, cx, lineY);
+
+  // Right rule line
+  ctx.beginPath();
+  ctx.moveTo(cx + headingW / 2 + 16 * S, lineY);
+  ctx.lineTo(cx + maxWidth / 2, lineY);
+  ctx.stroke();
+
   ctx.letterSpacing = '0px';
+  ctx.textBaseline = 'alphabetic';
 
-  const boxY = startY + 12 * S;
-  const boxH = 74 * S;
+  // 6 Tier Cards
+  const cardsY = lineY + 12 * S;
+  const cardH = 50 * S;
+  const count = OFFICIAL_CATEGORIES_TIERS.length;
+  const gap = 8 * S;
+  const cardW = (maxWidth - gap * (count - 1)) / count;
+  const startX = cx - maxWidth / 2;
 
-  if (count === 0) {
-    // Default Official Presenter Plaque - Clean Centered Typographic (No image or cup)
-    const cardW = Math.min(maxWidth * 0.88, 480 * S);
-    const cardX = cx - cardW / 2;
+  for (let i = 0; i < count; i++) {
+    const tier = OFFICIAL_CATEGORIES_TIERS[i];
+    const cX = startX + i * (cardW + gap);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    // Dark Card with Gold Border
+    ctx.fillStyle = 'rgba(10, 8, 6, 0.88)';
     ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
-    ctx.lineWidth = 1.2 * S;
-    drawRoundedRect(ctx, cardX, boxY, cardW, boxH, 14 * S);
+    ctx.lineWidth = 1 * S;
+    drawRoundedRect(ctx, cX, cardsY, cardW, cardH, 8 * S);
     ctx.fill();
     ctx.stroke();
 
+    // Card Icon
     ctx.textAlign = 'center';
+    ctx.font = `bold ${13 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
+    ctx.fillStyle = tier.iconColor;
+    ctx.fillText(tier.icon, cX + cardW / 2, cardsY + 16 * S);
+
+    // Label 1
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold ${16 * S}px "Cinzel", Georgia, serif`;
-    ctx.fillText('TELUGU ICON AWARDS 2026', cx, boxY + 31 * S);
+    ctx.font = `bold ${9 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
+    ctx.fillText(tier.label, cX + cardW / 2, cardsY + 30 * S);
 
-    ctx.fillStyle = primaryColor;
-    ctx.font = `600 ${11.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-    ctx.fillText('Official Presenter • Telugu Digital Space', cx, boxY + 51 * S);
-
-    return boxY + boxH + 10 * S;
+    // Sub-label
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.font = `500 ${7.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
+    ctx.fillText(tier.sub, cX + cardW / 2, cardsY + 42 * S);
   }
 
-  // Pre-load sponsor logos if valid image URLs exist
-  const loadedSponsors = await Promise.all(
-    sponsors.map(async (sp) => {
-      const url = sp.logo_url ? getAssetUrl(sp.logo_url) : null;
-      const img = url ? await loadImage(url) : null;
-      return { ...sp, img };
-    })
-  );
+  return cardsY + cardH;
+};
+
+// ── Dynamic Sponsor Logo Drawer (Transparent, No White Cards) ──────────────
+// Strictly NO white rectangular boxes. Logos are drawn transparently with object-fit: contain directly over the background.
+export const drawSponsorCard = (ctx, sponsor, x, y, w, h, scale) => {
+  if (!sponsor || !sponsor.img || !sponsor.img.width || !sponsor.img.height) return;
+
+  const padX = 6 * scale;
+  const padY = 4 * scale;
+  const maxW = Math.max(10, w - padX * 2);
+  const maxH = Math.max(10, h - padY * 2);
+  const scaleFactor = Math.min(maxW / sponsor.img.width, maxH / sponsor.img.height);
+  const dw = sponsor.img.width * scaleFactor;
+  const dh = sponsor.img.height * scaleFactor;
+  const dx = x + (w - dw) / 2;
+  const dy = y + (h - dh) / 2;
+
+  ctx.drawImage(sponsor.img, dx, dy, dw, dh);
+};
+
+// ── Section 2: "OUR PROUD SPONSORS" Dynamic Multi-Count Engine ────────────
+// Handles 0, 1, 2, 3-5, 6-10, and >10 sponsors dynamically without omitting any valid logos.
+export const drawDynamicSponsorsSection = (
+  ctx,
+  validSponsors,
+  cx,
+  startY,
+  maxWidth,
+  scale,
+  primaryColor
+) => {
+  // If zero sponsors: completely omit section without leaving empty blocks or cards
+  if (!validSponsors || validSponsors.length === 0) {
+    return startY;
+  }
+
+  // Draw heading: "—— OUR PROUD SPONSORS ——"
+  const lineY = startY + 10 * scale;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = primaryColor || '#D4AF37';
+  ctx.font = `bold ${11.5 * scale}px "Plus Jakarta Sans", Arial, sans-serif`;
+  ctx.letterSpacing = `${2 * scale}px`;
+  const headingText = 'OUR PROUD SPONSORS';
+  const headingW = ctx.measureText(headingText).width;
+
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.45)';
+  ctx.lineWidth = 1 * scale;
+
+  // Left rule
+  ctx.beginPath();
+  ctx.moveTo(cx - maxWidth / 2, lineY);
+  ctx.lineTo(cx - headingW / 2 - 14 * scale, lineY);
+  ctx.stroke();
+
+  // Heading text
+  ctx.textBaseline = 'middle';
+  ctx.fillText(headingText, cx, lineY);
+
+  // Right rule
+  ctx.beginPath();
+  ctx.moveTo(cx + headingW / 2 + 14 * scale, lineY);
+  ctx.lineTo(cx + maxWidth / 2, lineY);
+  ctx.stroke();
+
+  ctx.letterSpacing = '0px';
+  ctx.textBaseline = 'alphabetic';
+
+  const gridStartY = lineY + 12 * scale;
+  const count = validSponsors.length;
 
   if (count === 1) {
-    const sp = loadedSponsors[0];
-    const cardW = Math.min(maxWidth * 0.88, 500 * S);
+    // 1 Sponsor: Centered single logo with ample breathing room
+    const cardW = 280 * scale;
+    const cardH = 68 * scale;
     const cardX = cx - cardW / 2;
+    drawSponsorCard(ctx, validSponsors[0], cardX, gridStartY, cardW, cardH, scale);
+    return gridStartY + cardH;
+  }
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
-    ctx.lineWidth = 1.3 * S;
-    drawRoundedRect(ctx, cardX, boxY, cardW, boxH, 14 * S);
-    ctx.fill();
-    ctx.stroke();
+  if (count === 2) {
+    // 2 Sponsors: Balanced side-by-side arrangement
+    const cardW = 250 * scale;
+    const cardH = 62 * scale;
+    const gapX = 24 * scale;
+    const startX = cx - (cardW * 2 + gapX) / 2;
+    drawSponsorCard(ctx, validSponsors[0], startX, gridStartY, cardW, cardH, scale);
+    drawSponsorCard(ctx, validSponsors[1], startX + cardW + gapX, gridStartY, cardW, cardH, scale);
+    return gridStartY + cardH;
+  }
 
-    if (sp.img) {
-      // If a real uploaded sponsor logo exists, display logo on left and text on right
-      const imgBoxX = cardX + 14 * S;
-      const imgBoxY = boxY + 10 * S;
-      const imgBoxW = 86 * S;
-      const imgBoxH = 54 * S;
-
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.strokeStyle = 'rgba(212, 175, 55, 0.3)';
-      ctx.lineWidth = 1 * S;
-      drawRoundedRect(ctx, imgBoxX, imgBoxY, imgBoxW, imgBoxH, 10 * S);
-      ctx.fill();
-      ctx.stroke();
-
-      const maxLogoW = imgBoxW - 12 * S;
-      const maxLogoH = imgBoxH - 12 * S;
-      const scale = Math.min(maxLogoW / sp.img.width, maxLogoH / sp.img.height);
-      const dw = sp.img.width * scale;
-      const dh = sp.img.height * scale;
-      ctx.drawImage(
-        sp.img,
-        imgBoxX + (imgBoxW - dw) / 2,
-        imgBoxY + (imgBoxH - dh) / 2,
-        dw,
-        dh
-      );
-
-      const textX = imgBoxX + imgBoxW + 16 * S;
-      ctx.textAlign = 'left';
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = `bold ${17 * S}px "Cinzel", "Plus Jakarta Sans", Georgia, serif`;
-      const cleanName = String(sp.name || 'Category Sponsor').trim();
-      ctx.fillText(cleanName, textX, boxY + 28 * S);
-
-      ctx.fillStyle = primaryColor;
-      ctx.font = `700 ${11.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-      const roleText = (sp.role || 'Category Partner').toUpperCase();
-      ctx.fillText(roleText, textX, boxY + 46 * S);
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.font = `500 ${10.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-      const subText = sp.tagline || (sp.tier ? `Official ${sp.tier.replace(/_/g, ' ')} partner` : 'Official Telugu Icon Category Sponsor');
-      ctx.fillText(subText, textX, boxY + 61 * S);
-      ctx.textAlign = 'center';
-    } else {
-      // NO IMAGE / NO CUP: User requested clean typographic mention without any image or trophy cup
-      ctx.textAlign = 'center';
-
-      // Line 1: Sponsor Name
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = `bold ${18 * S}px "Cinzel", "Plus Jakarta Sans", Georgia, serif`;
-      const cleanName = String(sp.name || 'Category Sponsor').trim();
-      ctx.fillText(cleanName, cx, boxY + 27 * S);
-
-      // Line 2: Role
-      ctx.fillStyle = primaryColor;
-      ctx.font = `700 ${11.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-      ctx.letterSpacing = `${1.5 * S}px`;
-      const roleText = (sp.role || 'Category Partner').toUpperCase();
-      ctx.fillText(roleText, cx, boxY + 45 * S);
-      ctx.letterSpacing = '0px';
-
-      // Line 3: Tagline or official tier
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-      ctx.font = `500 ${10.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-      const subText = sp.tagline || (sp.tier ? `Official ${sp.tier.replace(/_/g, ' ')} partner` : 'Official Telugu Icon Category Sponsor');
-      ctx.fillText(subText, cx, boxY + 61 * S);
+  if (count === 3) {
+    // 3 Sponsors: 3 balanced logos in 1 row
+    const cardW = 175 * scale;
+    const cardH = 54 * scale;
+    const gapX = 16 * scale;
+    const startX = cx - (cardW * 3 + gapX * 2) / 2;
+    for (let i = 0; i < 3; i++) {
+      drawSponsorCard(ctx, validSponsors[i], startX + i * (cardW + gapX), gridStartY, cardW, cardH, scale);
     }
-  } else {
-    // 2 or 3 sponsors in a row
-    const displayCount = Math.min(count, 3);
-    const gap = 12 * S;
-    const multiCardH = 76 * S;
-    const cardW = (Math.min(maxWidth, 580 * S) - gap * (displayCount - 1)) / displayCount;
+    return gridStartY + cardH;
+  }
 
-    for (let idx = 0; idx < displayCount; idx++) {
-      const sp = loadedSponsors[idx];
-      const cardX = cx - (displayCount * cardW + (displayCount - 1) * gap) / 2 + idx * (cardW + gap);
-      const itemCx = cardX + cardW / 2;
+  if (count === 4) {
+    // 4 Sponsors: 4 balanced logos in 1 row
+    const cardW = 132 * scale;
+    const cardH = 48 * scale;
+    const gapX = 12 * scale;
+    const startX = cx - (cardW * 4 + gapX * 3) / 2;
+    for (let i = 0; i < 4; i++) {
+      drawSponsorCard(ctx, validSponsors[i], startX + i * (cardW + gapX), gridStartY, cardW, cardH, scale);
+    }
+    return gridStartY + cardH;
+  }
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-      ctx.strokeStyle = 'rgba(212, 175, 55, 0.32)';
-      ctx.lineWidth = 1 * S;
-      drawRoundedRect(ctx, cardX, boxY, cardW, multiCardH, 12 * S);
-      ctx.fill();
-      ctx.stroke();
+  if (count === 5) {
+    // 5 Sponsors: 2 balanced rows (Row 1: 3 logos, Row 2: 2 logos centered)
+    const cardW = 165 * scale;
+    const cardH = 44 * scale;
+    const gapX = 14 * scale;
+    const gapY = 8 * scale;
 
-      if (sp.img) {
-        const imgH = 32 * S;
-        const imgTop = boxY + 8 * S;
-        const maxLogoW = cardW - 20 * S;
-        const scale = Math.min(maxLogoW / sp.img.width, imgH / sp.img.height);
-        const dw = sp.img.width * scale;
-        const dh = sp.img.height * scale;
-        ctx.drawImage(sp.img, itemCx - dw / 2, imgTop + (imgH - dh) / 2, dw, dh);
+    // Row 1: 3 items
+    const row1W = 3 * cardW + 2 * gapX;
+    const row1StartX = cx - row1W / 2;
+    for (let i = 0; i < 3; i++) {
+      drawSponsorCard(ctx, validSponsors[i], row1StartX + i * (cardW + gapX), gridStartY, cardW, cardH, scale);
+    }
 
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = `bold ${12 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-        ctx.fillText(sp.name, itemCx, boxY + 50 * S);
+    // Row 2: 2 items centered
+    const row2Y = gridStartY + cardH + gapY;
+    const row2W = 2 * cardW + gapX;
+    const row2StartX = cx - row2W / 2;
+    for (let i = 0; i < 2; i++) {
+      drawSponsorCard(ctx, validSponsors[3 + i], row2StartX + i * (cardW + gapX), row2Y, cardW, cardH, scale);
+    }
+    return row2Y + cardH;
+  }
 
-        ctx.fillStyle = primaryColor;
-        ctx.font = `600 ${10 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-        ctx.fillText(sp.role || 'Partner', itemCx, boxY + 65 * S);
-      } else {
-        // No cup: clean centered typographic plaque
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = `bold ${13 * S}px "Cinzel", "Plus Jakarta Sans", Arial, sans-serif`;
-        ctx.fillText(sp.name, itemCx, boxY + 30 * S);
+  if (count >= 6 && count <= 10) {
+    // 6 to 10 Sponsors: 2 rows with centered final row
+    const cols = count <= 6 ? 3 : (count <= 8 ? 4 : 5);
+    const cardH = (count <= 6 ? 44 : 38) * scale;
+    const gapX = (count <= 6 ? 14 : 10) * scale;
+    const gapY = 8 * scale;
+    const cardW = Math.floor((maxWidth - (cols - 1) * gapX) / cols);
+    const numRows = Math.ceil(count / cols);
 
-        ctx.fillStyle = primaryColor;
-        ctx.font = `700 ${10.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-        ctx.fillText((sp.role || 'Partner').toUpperCase(), itemCx, boxY + 48 * S);
+    for (let r = 0; r < numRows; r++) {
+      const startIndex = r * cols;
+      const endIndex = Math.min(count, startIndex + cols);
+      const itemsInRow = endIndex - startIndex;
+      const rowW = itemsInRow * cardW + (itemsInRow - 1) * gapX;
+      const rowStartX = cx - rowW / 2;
+      const rowY = gridStartY + r * (cardH + gapY);
 
-        if (sp.tagline || sp.tier) {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-          ctx.font = `500 ${9.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-          ctx.fillText(sp.tagline || sp.tier.replace(/_/g, ' '), itemCx, boxY + 63 * S);
-        }
+      for (let c = 0; c < itemsInRow; c++) {
+        const sp = validSponsors[startIndex + c];
+        const cardX = rowStartX + c * (cardW + gapX);
+        drawSponsorCard(ctx, sp, cardX, rowY, cardW, cardH, scale);
       }
+    }
+    return gridStartY + numRows * cardH + (numRows - 1) * gapY;
+  }
+
+  // More than 10 Sponsors: Dynamic grid based on actual logo count
+  // Calculate columns, rows and card heights dynamically so ALL logos fit legibly without omission
+  const cols = count <= 16 ? 4 : (count <= 20 ? 5 : 6);
+  const numRows = Math.ceil(count / cols);
+  const gapX = (cols >= 5 ? 8 : 10) * scale;
+  const gapY = 6 * scale;
+  const cardW = Math.floor((maxWidth - (cols - 1) * gapX) / cols);
+  const cardH = Math.max(26 * scale, Math.min(36 * scale, Math.floor(150 * scale / numRows)));
+
+  for (let r = 0; r < numRows; r++) {
+    const startIndex = r * cols;
+    const endIndex = Math.min(count, startIndex + cols);
+    const itemsInRow = endIndex - startIndex;
+    const rowW = itemsInRow * cardW + (itemsInRow - 1) * gapX;
+    const rowStartX = cx - rowW / 2;
+    const rowY = gridStartY + r * (cardH + gapY);
+
+    for (let c = 0; c < itemsInRow; c++) {
+      const sp = validSponsors[startIndex + c];
+      const cardX = rowStartX + c * (cardW + gapX);
+      drawSponsorCard(ctx, sp, cardX, rowY, cardW, cardH, scale);
     }
   }
 
-  return boxY + boxH + 10 * S;
+  return gridStartY + numRows * cardH + (numRows - 1) * gapY;
 };
 
-// ── Master Poster Renderer (4:5 Poster and 9:16 Story) ────────────────────
+// Backward-compatible alias for drawProudSponsorsSection
+export const drawProudSponsorsSection = async (
+  ctx,
+  sponsors,
+  posterRefImg,
+  cx,
+  startY,
+  maxWidth,
+  scale,
+  primaryColor
+) => {
+  return drawDynamicSponsorsSection(ctx, sponsors, cx, startY, maxWidth, scale, primaryColor);
+};
+
+// ── Master Poster Renderer (2:3 Poster and 9:16 Story) ────────────────────
 export const buildPoster = async (nominee, options = {}) => {
   const isStory = options.format === 'story';
   const width = isStory ? STORY_WIDTH : POSTER_WIDTH;
@@ -868,123 +1198,156 @@ export const buildPoster = async (nominee, options = {}) => {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
+
   const S = width / 1080;
+  const scale = width / 682;
+  const offsetY = isStory ? Math.round((height - 1620) / 2) : 0;
   const cx = width / 2;
+  const maxContentW = 590 * scale;
 
   // Resolve Category Template & Branding Tokens
-  const templateKey = options.category?.poster_template || nominee.poster_template || 'gold_prestige';
+  const templateKey = options.category?.poster_template || nominee?.poster_template || 'gold_prestige';
   const template = POSTER_TEMPLATES[templateKey] || POSTER_TEMPLATES.gold_prestige;
-  const primaryColor = options.category?.poster_theme_color || nominee.poster_theme_color || template.primaryColor;
-  const secondaryColor = template.secondaryColor || '#FFDF73';
-  const badgeText = options.category?.poster_badge_text || nominee.poster_badge_text || 'OFFICIAL NOMINEE';
-  const categoryName = (options.category?.name || nominee.category_name || 'CREATOR OF THE YEAR').toUpperCase();
-  const sponsors = options.sponsors || [];
+  const primaryColor = options.category?.poster_theme_color || nominee?.poster_theme_color || template.primaryColor || '#D4AF37';
+  const categoryName = (options.category?.name || nominee?.category_name || 'TELUGU YOUTUBER OF THE YEAR').toUpperCase();
 
-  // Pre-load images
-  const photoUrl = nominee.photo_url ? getAssetUrl(nominee.photo_url) : null;
-  const [photo, logoImg] = await Promise.all([
+  // Pre-load assets: Nominee photo, Master poster
+  const photoUrl = nominee?.photo_url ? getAssetUrl(nominee.photo_url) : null;
+  const [photo, masterPosterImg] = await Promise.all([
     loadImage(photoUrl),
-    loadImage('/brand/logo-md.jpg').then((res) => res || loadImage('/logo.png')),
+    loadImage('/brand/master-poster.jpg')
+      .then((res) => res || loadImage('/brand/poster-reference.jpg'))
+      .then((res) => res || loadImage('/brand/reference-poster.jpg'))
+      .then((res) => res || loadImage('/brand/poster-template.jpg')),
   ]);
 
-  // 1. Atmospheric Luxury Background Gradient
-  const bg = ctx.createLinearGradient(0, 0, 0, height);
-  template.bgStops.forEach(({ stop, color }) => bg.addColorStop(stop, color));
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, width, height);
-
-  // Soft Radial Spotlight behind creator photo
-  const photoY = isStory ? 490 * S : 370 * S;
-  const spotlight = ctx.createRadialGradient(cx, photoY, 40 * S, cx, photoY, 420 * S);
-  spotlight.addColorStop(0, 'rgba(212, 175, 55, 0.12)');
-  spotlight.addColorStop(1, 'transparent');
-  ctx.fillStyle = spotlight;
-  ctx.fillRect(0, photoY - 350 * S, width, 700 * S);
-
-  // 2. Theme Specific Decorative Background Layer
-  if (template.drawDecorations) {
-    template.drawDecorations(ctx, width, height, S, primaryColor);
+  // Pre-load genuine scannable QR Code
+  let qrImg = options.qrImage;
+  if (!qrImg && nominee) {
+    const qrValue = qrUrl(nominee);
+    try {
+      const qrData = await qrDataUrl(qrValue, 640);
+      qrImg = await loadImage(qrData);
+    } catch (_) {
+      qrImg = await loadImage(`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue)}&size=640x640&margin=8&format=png`);
+    }
   }
 
-  // 3. Dual Hairline Luxury Frame
-  ctx.strokeStyle = primaryColor;
-  ctx.lineWidth = 1.5 * S;
-  ctx.strokeRect(30 * S, 30 * S, width - 60 * S, height - 60 * S);
+  // Filter and preload active sponsors with valid logos
+  const rawSponsors = Array.isArray(options.sponsors)
+    ? options.sponsors
+    : (Array.isArray(options.allSponsors) ? options.allSponsors : []);
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-  ctx.lineWidth = 1 * S;
-  ctx.strokeRect(42 * S, 42 * S, width - 84 * S, height - 84 * S);
+  const excludedIds = options.excludedSponsorIds instanceof Set
+    ? options.excludedSponsorIds
+    : new Set(Array.isArray(options.excludedSponsorIds) ? options.excludedSponsorIds : []);
 
-  ctx.textAlign = 'center';
+  const activeSponsors = rawSponsors.filter((s) => {
+    if (!s) return false;
+    const isMasterActive = s.is_active === 1 || s.is_active === true || s.is_active === '1' || s.is_active === undefined;
+    if (!isMasterActive) return false;
+    if (s.excluded_from_poster) return false;
+    const sId = s.id;
+    if (sId !== undefined && (excludedIds.has(sId) || excludedIds.has(String(sId)))) return false;
+    if (s.name && excludedIds.has(s.name)) return false;
+    return Boolean(s.logo_url || s.logo || s.img || s.image_id);
+  });
 
-  // 4. Header: Single Unified Event Brand Lockup
-  const headerY = isStory ? 80 * S : 60 * S;
-  let headerBottomY = headerY;
+  const sponsorsWithImages = await Promise.all(
+    activeSponsors.map(async (sp) => {
+      if (sp.img && sp.img.complete && sp.img.naturalWidth > 0) return sp;
+      const url = sp.logo_url || sp.logo || (sp.image_id ? `/api/images/${sp.image_id}/file` : null);
+      const img = url ? await loadImage(getAssetUrl(url)) : null;
+      return { ...sp, img };
+    })
+  );
 
-  if (logoImg) {
-    const maxLogoW = 135 * S;
-    const maxLogoH = 55 * S;
-    const scale = Math.min(maxLogoW / logoImg.width, maxLogoH / logoImg.height);
-    const dw = logoImg.width * scale;
-    const dh = logoImg.height * scale;
-    ctx.drawImage(logoImg, cx - dw / 2, headerY, dw, dh);
+  const validSponsors = sponsorsWithImages.filter((s) => s.img && s.img.width > 0 && s.img.height > 0);
 
-    // Event Title
-    ctx.fillStyle = primaryColor;
-    ctx.font = `bold ${16 * S}px "Cinzel", Georgia, serif`;
-    ctx.letterSpacing = `${2.5 * S}px`;
-    ctx.fillText('TELUGU ICON DIGITAL & INFLUENCER AWARDS 2026', cx, headerY + dh + 18 * S);
-    ctx.letterSpacing = '0px';
+  // 1. Clear Canvas & Draw Complete Master Golden Background
+  ctx.clearRect(0, 0, width, height);
 
-    headerBottomY = headerY + dh + 24 * S;
+  const bgImgW = masterPosterImg?.naturalWidth || masterPosterImg?.width || 687;
+  const bgImgH = masterPosterImg?.naturalHeight || masterPosterImg?.height || 1024;
+
+  if (masterPosterImg) {
+    if (isStory) {
+      // 9:16 Instagram Story (1080 x 1920)
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, '#0c0805');
+      bgGrad.addColorStop(0.2, '#070503');
+      bgGrad.addColorStop(0.8, '#050302');
+      bgGrad.addColorStop(1, '#000000');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw full master poster centered vertically
+      ctx.drawImage(masterPosterImg, 0, 0, bgImgW, bgImgH, 0, offsetY, width, bgImgH * scale);
+    } else {
+      // 2:3 Official Poster (1080 x 1620)
+      ctx.drawImage(masterPosterImg, 0, 0, bgImgW, bgImgH, 0, 0, width, height);
+    }
+    // Note: Absolutely NO artificial black overlay panel or screen!
+    // The background is 100% clean. The spiral star trophy on the right stands proudly,
+    // and golden ambient sparkles flow across the poster.
   } else {
+    // Procedural header fallback when master poster background is missing
+    const headerTopY = isStory ? 60 * S : 34 * S;
+    ctx.textAlign = 'center';
     ctx.fillStyle = primaryColor;
-    ctx.font = `bold ${22 * S}px "Cinzel", Georgia, serif`;
+    ctx.font = `bold ${24 * S}px "Cinzel", Georgia, serif`;
     ctx.letterSpacing = `${3 * S}px`;
-    ctx.fillText('TELUGU ICON AWARDS 2026', cx, headerY + 22 * S);
-    ctx.letterSpacing = '0px';
+    ctx.fillText('TELUGU ICON AWARDS 2026', cx, headerTopY + 24 * S);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = `600 ${12 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = `600 ${11 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
     ctx.letterSpacing = `${2 * S}px`;
-    ctx.fillText('DIGITAL & INFLUENCER AWARDS', cx, headerY + 42 * S);
+    ctx.fillText('HONORING INFLUENCE. CELEBRATING EXCELLENCE.', cx, headerTopY + 44 * S);
+
+    ctx.fillStyle = primaryColor;
+    ctx.font = `bold ${14 * S}px "Cinzel", Georgia, serif`;
+    ctx.fillText('TELUGU ICON DIGITAL & INFLUENCER AWARDS 2026', cx, headerTopY + 64 * S);
     ctx.letterSpacing = '0px';
 
-    headerBottomY = headerY + 46 * S;
+    const badgeY = headerTopY + 74 * S;
+    const badgeH = 28 * S;
+    const badgeW = 220 * S;
+    const badgeGrad = ctx.createLinearGradient(cx - badgeW / 2, badgeY, cx + badgeW / 2, badgeY + badgeH);
+    badgeGrad.addColorStop(0, '#FFE58F');
+    badgeGrad.addColorStop(0.5, '#F5BA38');
+    badgeGrad.addColorStop(1, '#D4AF37');
+    ctx.fillStyle = badgeGrad;
+    drawRoundedRect(ctx, cx - badgeW / 2, badgeY, badgeW, badgeH, badgeH / 2);
+    ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#1A0C00';
+    ctx.font = `bold ${12.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
+    ctx.fillText('★  OFFICIAL NOMINEE  ★', cx, badgeY + badgeH / 2);
+    ctx.textBaseline = 'alphabetic';
+
+    const trophyX = isStory ? 740 * S : 720 * S;
+    const trophyY = isStory ? 280 * S : 165 * S;
+    drawProcedural3DTrophy(ctx, trophyX, trophyY, isStory ? 210 * S : 185 * S, isStory ? 430 * S : 340 * S, primaryColor);
   }
 
-  // Official Nomination Ribbon Badge (Single, prominent, uncrowded)
-  const ribbonText = `★  ${(badgeText || 'OFFICIAL NOMINEE').toUpperCase()}  ★`;
-  ctx.font = `700 ${11.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.letterSpacing = `${3 * S}px`;
-  const ribbonW = ctx.measureText(ribbonText).width + 30 * S;
-  const ribbonH = 26 * S;
-  const ribbonY = headerBottomY + 8 * S;
-
-  ctx.fillStyle = 'rgba(212, 175, 55, 0.1)';
-  ctx.strokeStyle = 'rgba(212, 175, 55, 0.35)';
-  ctx.lineWidth = 1 * S;
-  drawRoundedRect(ctx, cx - ribbonW / 2, ribbonY, ribbonW, ribbonH, ribbonH / 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = secondaryColor;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(ribbonText, cx, ribbonY + ribbonH / 2);
-  ctx.textBaseline = 'alphabetic';
-  ctx.letterSpacing = '0px';
-
-  // 5. Nominee Photo in Double Concentric Luxury Ring Frame
-  const ringRadius = isStory ? 195 * S : 148 * S;
-  const ringY = isStory ? 470 * S : 335 * S;
+  // 2. Nominee Photo in Glowing Double Gold Concentric Ring
+  // When using clean background template:
+  // "★ OFFICIAL NOMINEE ★" ends at y=335px.
+  // We position the circular portrait at cy=418px with radius=68px,
+  // leaving the standing spiral star trophy on the right (x > 440) completely unobscured.
+  const photoCx = cx;
+  const photoCy = (masterPosterImg ? 418 * scale : 262 * scale) + offsetY;
+  const photoRadius = (masterPosterImg ? 68 * scale : 79 * scale);
 
   if (photo) {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(cx, ringY, ringRadius, 0, Math.PI * 2);
+    ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
     ctx.clip();
-    ctx.fillStyle = '#1c1c1c';
-    ctx.fillRect(cx - ringRadius, ringY - ringRadius, ringRadius * 2, ringRadius * 2);
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(photoCx - photoRadius, photoCy - photoRadius, photoRadius * 2, photoRadius * 2);
 
     const side = Math.min(photo.width, photo.height);
     ctx.drawImage(
@@ -993,144 +1356,210 @@ export const buildPoster = async (nominee, options = {}) => {
       (photo.height - side) / 2,
       side,
       side,
-      cx - ringRadius,
-      ringY - ringRadius,
-      ringRadius * 2,
-      ringRadius * 2
+      photoCx - photoRadius,
+      photoCy - photoRadius,
+      photoRadius * 2,
+      photoRadius * 2
     );
     ctx.restore();
+
+    // Inner Gold Concentric Ring
+    const ringGrad = ctx.createLinearGradient(
+      photoCx - photoRadius,
+      photoCy - photoRadius,
+      photoCx + photoRadius,
+      photoCy + photoRadius
+    );
+    ringGrad.addColorStop(0, '#FFF5BA');
+    ringGrad.addColorStop(0.35, '#FCD34D');
+    ringGrad.addColorStop(0.7, '#D4AF37');
+    ringGrad.addColorStop(1, '#8A6412');
+    ctx.strokeStyle = ringGrad;
+    ctx.lineWidth = 4 * scale;
+    ctx.beginPath();
+    ctx.arc(photoCx, photoCy, photoRadius + 1.5 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Outer Soft Halo Ring
+    ctx.strokeStyle = 'rgba(255, 223, 115, 0.45)';
+    ctx.lineWidth = 2 * scale;
+    ctx.beginPath();
+    ctx.arc(photoCx, photoCy, photoRadius + 5.5 * scale, 0, Math.PI * 2);
+    ctx.stroke();
   } else {
-    drawMonogramAvatar(ctx, cx, ringY, ringRadius, nominee.full_name, primaryColor, S);
+    // Neutral luxury portrait fallback with prestigious gold avatar silhouette when photo is unavailable
+    drawNeutralPortraitFallback(ctx, photoCx, photoCy, photoRadius, primaryColor, scale);
+
+    // Inner Gold Concentric Ring
+    const ringGrad = ctx.createLinearGradient(
+      photoCx - photoRadius,
+      photoCy - photoRadius,
+      photoCx + photoRadius,
+      photoCy + photoRadius
+    );
+    ringGrad.addColorStop(0, '#FFF5BA');
+    ringGrad.addColorStop(0.35, '#FCD34D');
+    ringGrad.addColorStop(0.7, '#D4AF37');
+    ringGrad.addColorStop(1, '#8A6412');
+    ctx.strokeStyle = ringGrad;
+    ctx.lineWidth = 4 * scale;
+    ctx.beginPath();
+    ctx.arc(photoCx, photoCy, photoRadius + 1.5 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Outer Soft Halo Ring
+    ctx.strokeStyle = 'rgba(255, 223, 115, 0.45)';
+    ctx.lineWidth = 2 * scale;
+    ctx.beginPath();
+    ctx.arc(photoCx, photoCy, photoRadius + 5.5 * scale, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
-  // Concentric Outer Gold Frame
-  ctx.strokeStyle = primaryColor;
-  ctx.lineWidth = 4 * S;
-  ctx.beginPath();
-  ctx.arc(cx, ringY, ringRadius + 3 * S, 0, Math.PI * 2);
-  ctx.stroke();
+  // 3. Nominee Full Name (Rendered in radiant gold without artificial black smudges)
+  const fullNameToDisplay = nominee?.full_name || 'Creator Name';
+  const nameCenterY = (masterPosterImg ? 512 * scale : 364 * scale) + offsetY;
+  const nameMaxW = masterPosterImg ? 390 * scale : 440 * scale;
+  const nameLayout = fitNomineeName(ctx, fullNameToDisplay, nameMaxW, scale);
 
-  ctx.strokeStyle = 'rgba(255, 223, 115, 0.5)';
-  ctx.lineWidth = 1.5 * S;
-  ctx.beginPath();
-  ctx.arc(cx, ringY, ringRadius + 7 * S, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#F6D389';
+  ctx.font = `bold ${nameLayout.fontSize}px "Cinzel", "Playfair Display", Georgia, serif`;
+  ctx.textBaseline = 'middle';
 
-  // 6. Nominee Full Name (CRITICAL REQUIREMENT: COMPLETE, UNTRUNCATED)
-  // Generous margin bottom under the avatar ring (user requirement: add margin under avatar)
-  const avatarMarginBottom = isStory ? 58 * S : 50 * S;
-  const nameStartY = ringY + ringRadius + 7 * S + avatarMarginBottom;
-  const maxContentW = width - 200 * S;
-  const nameLayout = fitNomineeName(ctx, nominee.full_name, maxContentW, S);
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `bold ${nameLayout.fontSize}px "Cinzel", "Noto Sans Telugu", "Gautami", Georgia, serif`;
-  ctx.textBaseline = 'top';
-  drawLines(ctx, nameLayout.lines, cx, nameStartY, nameLayout.lineHeight);
-  ctx.textBaseline = 'alphabetic'; // Reset to standard
-
-  const nameBottomY = nameStartY + nameLayout.lines.length * nameLayout.lineHeight;
-
-  // 7. Award Category Plaque (COMPLETE, UNTRUNCATED)
-  const plaqueGap = 16 * S;
-  const plaquePillW = Math.min(width - 220 * S, 760 * S);
-  const plaquePillX = cx - plaquePillW / 2;
-  const plaquePillY = nameBottomY + plaqueGap;
-
-  const catLayout = fitCategoryText(ctx, categoryName, plaquePillW - 48 * S, S);
-  const plaquePillH = 34 * S + catLayout.totalHeight;
-
-  // Plaque Glass Container
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-  ctx.strokeStyle = 'rgba(212, 175, 55, 0.38)';
-  ctx.lineWidth = 1.5 * S;
-  drawRoundedRect(ctx, plaquePillX, plaquePillY, plaquePillW, plaquePillH, 16 * S);
-  ctx.fill();
-  ctx.stroke();
-
-  // Plaque Sub-label
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-  ctx.font = `bold ${10.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.letterSpacing = `${3 * S}px`;
-  ctx.fillText('NOMINATED FOR', cx, plaquePillY + 18 * S);
-  ctx.letterSpacing = '0px';
-
-  // Category Title (1 or 2 lines without ellipsis)
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `bold ${catLayout.fontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
-  drawLines(ctx, catLayout.lines, cx, plaquePillY + 24 * S + catLayout.fontSize, catLayout.lineHeight);
-
-  const plaqueBottomY = plaquePillY + plaquePillH;
-
-  // 8. Dynamic Tag Layout (Requirement 4)
-  // Gather and deduplicate all valid campaign tags
-  const validTags = [];
-  if (nominee.social_handle) {
-    const handle = nominee.social_handle.startsWith('@') ? nominee.social_handle : `@${nominee.social_handle}`;
-    validTags.push(handle);
-  }
-  if (nominee.nominee_code) {
-    validTags.push(`Code: ${nominee.nominee_code}`);
-  }
-  if (nominee.platform) {
-    validTags.push(nominee.platform);
-  }
-  validTags.push('#TeluguIconAwards2026');
-
-  // Append any caller-specified tags
-  if (Array.isArray(options.tags)) {
-    options.tags.forEach((t) => {
-      if (t && !validTags.includes(t)) validTags.push(t);
+  if (nameLayout.lines.length === 1) {
+    ctx.fillText(nameLayout.lines[0], photoCx, nameCenterY);
+  } else {
+    const totalH = nameLayout.totalHeight;
+    const startY = nameCenterY - totalH / 2 + nameLayout.lineHeight / 2;
+    nameLayout.lines.forEach((line, idx) => {
+      ctx.fillText(line, photoCx, startY + idx * nameLayout.lineHeight);
     });
   }
+  ctx.textBaseline = 'alphabetic';
 
-  const tagsStartY = plaqueBottomY + 14 * S;
-  const tagsBottomY = drawDynamicTags(ctx, validTags, cx, tagsStartY, maxContentW, S, primaryColor);
+  // 4. Category Plaque: "NOMINATED FOR <CATEGORY>"
+  const plaqueW = Math.min(maxContentW, masterPosterImg ? 400 * scale : 442 * scale);
+  const plaqueH = 38 * scale;
+  const plaqueX = photoCx - plaqueW / 2;
+  const plaqueY = (masterPosterImg ? 546 * scale : 396 * scale) + offsetY;
 
-  // 9. Category Sponsors or Presenter Section
-  const sponsorStartY = tagsBottomY + 8 * S;
-  const sponsorBottomY = await drawSponsorsSection(ctx, sponsors, cx, sponsorStartY, maxContentW, S, primaryColor);
+  // Translucent luxury dark glass pill with gold border (No opaque black box)
+  ctx.fillStyle = 'rgba(12, 8, 4, 0.72)';
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.85)';
+  ctx.lineWidth = 1.2 * scale;
+  drawRoundedRect(ctx, plaqueX, plaqueY, plaqueW, plaqueH, 10 * scale);
+  ctx.fill();
+  ctx.stroke();
 
-  // 10. Luxury Bottom Section: QR Code & Call to Action (Requirement 6)
-  // Carefully positioned with clear quiet zone and high-fashion typography
-  const ctaY = isStory ? height - 440 * S : Math.max(height - 380 * S, sponsorBottomY + 16 * S);
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `bold ${23 * S}px "Cinzel", Georgia, serif`;
-  ctx.letterSpacing = `${2.5 * S}px`;
-  ctx.fillText('SCAN TO VIEW & VOTE', cx, ctaY);
+  // "NOMINATED FOR" label above plaque
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#D4AF37';
+  ctx.font = `bold ${8.5 * scale}px "Plus Jakarta Sans", Arial, sans-serif`;
+  ctx.letterSpacing = `${2 * scale}px`;
+  ctx.fillText('NOMINATED FOR', photoCx, plaqueY - 7 * scale);
   ctx.letterSpacing = '0px';
 
-  ctx.fillStyle = secondaryColor;
-  ctx.font = `600 ${13 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.fillText('Discover the Nominee & Cast Your Official Vote', cx, ctaY + 20 * S);
+  // Category title inside plaque
+  const catLayout = fitCategoryText(ctx, categoryName, plaqueW - 32 * scale, scale);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFF8E7';
+  ctx.font = `bold ${Math.max(catLayout.fontSize, 15 * scale)}px "Plus Jakarta Sans", Arial, sans-serif`;
+  ctx.fillText(categoryName, photoCx, plaqueY + plaqueH / 2);
+  ctx.textBaseline = 'alphabetic';
 
-  // White Card with High-Contrast Quiet Zone for QR Code
-  const qrSize = isStory ? 180 * S : 144 * S;
-  const qrCardPadding = 10 * S;
-  const qrCardW = qrSize + qrCardPadding * 2;
-  const qrCardH = qrSize + qrCardPadding * 2;
-  const qrCardTop = ctaY + 30 * S;
-
-  ctx.fillStyle = '#FFFFFF';
-  drawRoundedRect(ctx, cx - qrCardW / 2, qrCardTop, qrCardW, qrCardH, 12 * S);
-  ctx.fill();
-
-  if (options.qrImage) {
-    ctx.drawImage(options.qrImage, cx - qrSize / 2, qrCardTop + qrCardPadding, qrSize, qrSize);
+  // Procedural fallback only: Draw official categories strip if background image is absent
+  if (!masterPosterImg) {
+    const catSectionY = plaqueY + plaqueH + 16 * scale;
+    drawOfficialCategoriesSection(ctx, cx, catSectionY, maxContentW, scale, primaryColor);
   }
 
-  // Canonical Destination & Verification Badge (No chopped URL!)
-  const destBadgeY = qrCardTop + qrCardH + 18 * S;
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-  ctx.font = `600 ${13 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.fillText('teluguiconawards.in • 100% Verified OTP Public Voting', cx, destBadgeY);
+  // 5. Bottom Event Footer (ONLY Date and Venue/Address, per user specification)
+  const footerH = 34 * scale;
+  const footerY = (isStory ? height - offsetY - footerH - 18 * scale : height - footerH - 18 * scale);
+  const footerW = Math.min(maxContentW, 560 * scale);
+  const footerX = cx - footerW / 2;
 
-  // 11. Luxury Event Footer
-  const footerY = height - 26 * S;
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
-  ctx.font = `500 ${11.5 * S}px "Plus Jakarta Sans", Arial, sans-serif`;
-  ctx.fillText('16 November 2026 • Shilpakala Vedika, Hyderabad • Official Campaign Kit', cx, footerY);
+  const eventDate = (options.event?.date || '16 NOVEMBER 2026').toUpperCase();
+  const eventVenue = (options.event?.venue || 'SHILPAKALA VEDIKA, HYDERABAD').toUpperCase();
+  const eventBannerText = `📅  ${eventDate}   |   📍  ${eventVenue}`;
+
+  ctx.fillStyle = 'rgba(15, 10, 6, 0.85)';
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.75)';
+  ctx.lineWidth = 1.2 * scale;
+  drawRoundedRect(ctx, footerX, footerY, footerW, footerH, 17 * scale);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFF8E7';
+  ctx.font = `bold ${10.5 * scale}px "Plus Jakarta Sans", Arial, sans-serif`;
+  ctx.letterSpacing = `${1 * scale}px`;
+  ctx.fillText(eventBannerText, cx, footerY + footerH / 2);
+  ctx.letterSpacing = '0px';
+  ctx.textBaseline = 'alphabetic';
+
+  // 6. Dynamic Sponsor Section (between Category Plaque and QR Section)
+  const sponsorSectionStartY = (masterPosterImg ? 606 * scale : 544 * scale) + offsetY;
+  let sponsorSectionEndY = sponsorSectionStartY;
+
+  if (validSponsors.length > 0) {
+    sponsorSectionEndY = drawDynamicSponsorsSection(ctx, validSponsors, cx, sponsorSectionStartY, maxContentW, scale, primaryColor);
+  }
+
+  // 7. Voting QR Code Section (auto-centered in remaining space above the footer)
+  const qrBottomLimit = footerY - 8 * scale;
+  const availableQrSpace = Math.max(70 * scale, qrBottomLimit - sponsorSectionEndY);
+  const isZeroSponsors = validSponsors.length === 0;
+
+  let qrCardSize = isZeroSponsors ? 110 * scale : (validSponsors.length <= 2 ? 82 * scale : 72 * scale);
+  let ctaTitleFontSize = isZeroSponsors ? 17 * scale : (validSponsors.length <= 4 ? 14.5 * scale : 13.5 * scale);
+  let ctaSubFontSize = isZeroSponsors ? 10.5 * scale : 9.5 * scale;
+
+  let titleGap = (isZeroSponsors ? 16 : 12) * scale;
+  let subGap = (isZeroSponsors ? 10 : 8) * scale;
+  let totalQrHeight = ctaTitleFontSize + titleGap + ctaSubFontSize + subGap + qrCardSize;
+
+  if (totalQrHeight > availableQrSpace - 8 * scale) {
+    const scaleFactor = Math.max(0.65, (availableQrSpace - 8 * scale) / totalQrHeight);
+    qrCardSize = Math.max(54 * scale, qrCardSize * scaleFactor);
+    ctaTitleFontSize *= scaleFactor;
+    ctaSubFontSize *= scaleFactor;
+    titleGap *= scaleFactor;
+    subGap *= scaleFactor;
+    totalQrHeight *= scaleFactor;
+  }
+
+  const qrTopGap = Math.max(6 * scale, (availableQrSpace - totalQrHeight) / 2);
+
+  const ctaTitleY = sponsorSectionEndY + qrTopGap + ctaTitleFontSize;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = primaryColor || '#D4AF37';
+  ctx.font = `bold ${ctaTitleFontSize}px "Cinzel", "Playfair Display", Georgia, serif`;
+  ctx.letterSpacing = `${2 * scale}px`;
+  ctx.fillText('SCAN TO VIEW & VOTE', cx, ctaTitleY);
+  ctx.letterSpacing = '0px';
+
+  const ctaSubY = ctaTitleY + titleGap;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.font = `600 ${ctaSubFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+  ctx.fillText('Discover the Nominee & Cast Your Official Vote', cx, ctaSubY);
+
+  const qrCardX = cx - qrCardSize / 2;
+  const qrCardY = ctaSubY + subGap;
+
+  ctx.fillStyle = '#FFFFFF';
+  drawRoundedRect(ctx, qrCardX, qrCardY, qrCardSize, qrCardSize, 8 * scale);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.65)';
+  ctx.lineWidth = 1.2 * scale;
+  ctx.stroke();
+
+  if (qrImg) {
+    const pad = 5 * scale;
+    ctx.drawImage(qrImg, qrCardX + pad, qrCardY + pad, qrCardSize - pad * 2, qrCardSize - pad * 2);
+  }
 
   return canvas;
 };
@@ -1142,6 +1571,8 @@ export const buildCampaignKitZip = async ({
   sponsors = [],
   posterCanvas,
   storyCanvas,
+  posterBlob: directPosterBlob,
+  storyBlob: directStoryBlob,
   qrDataUrl,
 }) => {
   const zip = new JSZip();
@@ -1149,16 +1580,38 @@ export const buildCampaignKitZip = async ({
   const code = nominee.nominee_code || 'TIC26';
   const prefix = `Telugu-Icon-Awards-2026-${code}-${slug}`;
 
-  // 1. Personalized Poster PNG (4:5)
-  if (posterCanvas) {
-    const posterBlob = await new Promise((resolve) => posterCanvas.toBlob(resolve, 'image/png'));
-    zip.file(`${prefix}-Official-Poster-4x5.png`, posterBlob);
+  // Dynamic poster filename: CandidateName_FunctionName.png (Requirement 15)
+  const posterFilename = createPosterFilename(
+    nominee.full_name,
+    category?.name || nominee.category_name
+  );
+
+  // Safe canvas to blob export helper
+  const canvasToBlobSafe = (canvas, mime = 'image/png') => {
+    return new Promise((resolve) => {
+      if (!canvas || typeof canvas.toBlob !== 'function') {
+        resolve(null);
+        return;
+      }
+      try {
+        canvas.toBlob((blob) => resolve(blob), mime);
+      } catch (err) {
+        console.error('Canvas export to blob error:', err);
+        resolve(null);
+      }
+    });
+  };
+
+  // 1. Personalized Poster PNG — filename: CandidateName_FunctionName.png
+  const finalPosterBlob = directPosterBlob || (posterCanvas ? await canvasToBlobSafe(posterCanvas, 'image/png') : null);
+  if (finalPosterBlob) {
+    zip.file(posterFilename, finalPosterBlob);
   }
 
   // 2. Personalized Story PNG (9:16)
-  if (storyCanvas) {
-    const storyBlob = await new Promise((resolve) => storyCanvas.toBlob(resolve, 'image/png'));
-    zip.file(`${prefix}-Instagram-Story-9x16.png`, storyBlob);
+  const finalStoryBlob = directStoryBlob || (storyCanvas ? await canvasToBlobSafe(storyCanvas, 'image/png') : null);
+  if (finalStoryBlob) {
+    zip.file(`${prefix}-Instagram-Story-9x16.png`, finalStoryBlob);
   }
 
   // 3. High-Res QR Code PNG

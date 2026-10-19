@@ -11,7 +11,7 @@ import {
   STORY_HEIGHT,
   loadImage,
 } from '../../lib/posterRenderer';
-import { qrUrl, qrDataUrl, downloadQrPng } from '../../lib/nomineeCampaign';
+import { qrUrl, qrDataUrl, downloadQrPng, voteUrl, nomineeUrl } from '../../lib/nomineeCampaign';
 
 export default function PosterTemplatesTab() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,8 +37,31 @@ export default function PosterTemplatesTab() {
   const [sponsorRole, setSponsorRole] = useState('Category Partner');
   const [sponsorSortOrder, setSponsorSortOrder] = useState(0);
   const [isAddingSponsor, setIsAddingSponsor] = useState(false);
+  const [excludedSponsorIds, setExcludedSponsorIds] = useState(new Set());
 
-  // Category nominees for preview
+  // Poster sponsor inclusion / exclusion actions
+  const removeSponsorFromPoster = (sponsorId) => {
+    setExcludedSponsorIds((prev) => {
+      const next = new Set(prev);
+      next.add(sponsorId);
+      return next;
+    });
+    setFeedback({ type: 'success', text: 'Sponsor removed from poster preview.' });
+    setTimeout(() => setFeedback(null), 2500);
+  };
+
+  const includeSponsorOnPoster = (sponsorId) => {
+    setExcludedSponsorIds((prev) => {
+      const next = new Set(prev);
+      next.delete(sponsorId);
+      return next;
+    });
+    setFeedback({ type: 'success', text: 'Sponsor restored to poster preview.' });
+    setTimeout(() => setFeedback(null), 2500);
+  };
+
+  // Nominees for selection and preview
+  const [allNominees, setAllNominees] = useState([]);
   const [nominees, setNominees] = useState([]);
   const [selectedNomineeId, setSelectedNomineeId] = useState('');
 
@@ -47,27 +70,54 @@ export default function PosterTemplatesTab() {
   const [feedback, setFeedback] = useState(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const [isPreviewRendering, setIsPreviewRendering] = useState(false);
+  const [isPosterReady, setIsPosterReady] = useState(false);
 
   const posterCanvasRef = useRef(null);
   const storyCanvasRef = useRef(null);
   const qrImageRef = useRef(null);
+  const renderSeqRef = useRef(0);
+  const isMountedRef = useRef(true);
 
-  // Load all categories and sponsors on mount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Load all categories, sponsors, and nominees on mount
   useEffect(() => {
     setLoading(true);
     Promise.all([
       api.get('/categories'),
       api.get('/admin/sponsors').catch(() => api.get('/sponsors')),
+      api.get('/admin/nominees').catch(() => api.get('/nominees')),
     ])
-      .then(([cats, spons]) => {
+      .then(([cats, spons, noms]) => {
         if (Array.isArray(cats)) {
           setCategories(cats);
-          const initialCatId = searchParams.get('category') || (cats[0] ? String(cats[0].id) : '');
-          setSelectedCategoryId(initialCatId);
         }
-        if (Array.isArray(spons)) {
-          setAllSponsors(spons);
+        const sponsorList = Array.isArray(spons) ? spons : (Array.isArray(spons?.data) ? spons.data : []);
+        setAllSponsors(sponsorList);
+        if (Array.isArray(noms)) {
+          setAllNominees(noms);
         }
+
+        const requestedNominee = searchParams.get('nominee');
+        if (requestedNominee && Array.isArray(noms)) {
+          const matched = noms.find((n) => String(n.id) === requestedNominee || String(n.slug) === requestedNominee);
+          if (matched) {
+            setSelectedNomineeId(String(matched.id));
+            if (matched.category_id) {
+              setSelectedCategoryId(String(matched.category_id));
+              return;
+            }
+          }
+        }
+
+        const initialCatId = searchParams.get('category') || (cats && cats[0] ? String(cats[0].id) : '');
+        setSelectedCategoryId(initialCatId);
       })
       .catch((err) => setFeedback({ type: 'error', text: err.message }))
       .finally(() => setLoading(false));
@@ -105,7 +155,7 @@ export default function PosterTemplatesTab() {
           setNominees(data.nominees);
           const requestedNominee = searchParams.get('nominee');
           const matched = requestedNominee
-            ? data.nominees.find((n) => String(n.id) === requestedNominee)
+            ? data.nominees.find((n) => String(n.id) === requestedNominee || String(n.slug) === requestedNominee)
             : null;
           setSelectedNomineeId(matched ? String(matched.id) : (data.nominees[0] ? String(data.nominees[0].id) : 'sample'));
         }
@@ -115,23 +165,34 @@ export default function PosterTemplatesTab() {
       });
   }, [selectedCategoryId]);
 
-  // Selected nominee or sample fallback for live preview
-  const currentNominee = selectedNomineeId === 'sample' || !nominees.length
-    ? {
-      id: 99999,
-      full_name: 'Sample Telugu Creator',
-      slug: 'sample-creator',
-      nominee_code: 'TIC26-DEMO',
-      photo_url: null,
-      social_handle: '@samplecreator',
-      category_id: Number(selectedCategoryId),
-      category_name: categoryDetails?.name || 'Creator Award',
+  // Selected nominee resolution: category nominees -> all nominees -> fallback
+  const currentNominee = (() => {
+    if (selectedNomineeId && selectedNomineeId !== 'sample') {
+      const foundInCat = nominees.find((n) => String(n.id) === String(selectedNomineeId));
+      if (foundInCat) return foundInCat;
+      const foundInAll = allNominees.find((n) => String(n.id) === String(selectedNomineeId));
+      if (foundInAll) return foundInAll;
     }
-    : (nominees.find((n) => String(n.id) === String(selectedNomineeId)) || nominees[0]);
+    if (nominees.length > 0) return nominees[0];
+    if (allNominees.length > 0) return allNominees[0];
+    return {
+      id: 99999,
+      full_name: 'Telugu Creator',
+      slug: 'telugu-creator',
+      nominee_code: 'TIC26',
+      photo_url: null,
+      social_handle: '@creator',
+      category_id: Number(selectedCategoryId) || 1,
+      category_name: categoryDetails?.name || 'Creator Award',
+    };
+  })();
 
   // Render poster preview canvases whenever template, nominee, or sponsors change
   const renderPreview = useCallback(async () => {
     if (!currentNominee || !categoryDetails) return;
+    const seq = ++renderSeqRef.current;
+    setIsPreviewRendering(true);
+    setIsPosterReady(false);
 
     try {
       // 1. Prepare QR Code
@@ -143,6 +204,7 @@ export default function PosterTemplatesTab() {
         qrSource = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue)}&size=640x640&margin=8&format=png`;
       }
       const qrImg = await loadImage(qrSource);
+      if (!isMountedRef.current || seq !== renderSeqRef.current) return;
       qrImageRef.current = qrImg;
 
       const activeCategory = {
@@ -155,29 +217,46 @@ export default function PosterTemplatesTab() {
 
       const parsedTags = customTags.split(',').map((t) => t.trim()).filter(Boolean);
 
-      const activeSponsors = categorySponsors.length > 0 ? categorySponsors : previewFallbackSponsors;
+      // Only real database sponsors with logos, no fake reference fallback
+      const baseSponsors = categorySponsors.length > 0
+        ? categorySponsors
+        : (previewFallbackSponsors.length > 0 ? previewFallbackSponsors : allSponsors);
 
-      // 2. Render 4:5 Poster
-      const posterCanvas = await buildPoster(currentNominee, {
-        format: 'poster',
-        category: activeCategory,
-        sponsors: activeSponsors,
-        tags: parsedTags,
-        qrImage: qrImg,
+      const activeSponsors = baseSponsors.filter((s) => {
+        const sId = s.sponsor_id || s.id;
+        const isMasterActive = s.is_active === 1 || s.is_active === true || s.is_active === '1' || s.is_active === undefined;
+        const isExcluded = excludedSponsorIds.has(sId) || excludedSponsorIds.has(String(sId)) || excludedSponsorIds.has(s.name);
+        const hasValidLogo = Boolean(s.logo_url || s.logo || s.image_id);
+        return isMasterActive && !isExcluded && hasValidLogo;
       });
 
-      // 3. Render 9:16 Story
-      const storyCanvas = await buildPoster(currentNominee, {
-        format: 'story',
-        category: activeCategory,
-        sponsors: activeSponsors,
-        tags: parsedTags,
-        qrImage: qrImg,
-      });
+      // 2. Render Official Poster and Story
+      const [posterCanvas, storyCanvas] = await Promise.all([
+        buildPoster(currentNominee, {
+          format: 'poster',
+          category: activeCategory,
+          sponsors: activeSponsors,
+          allSponsors: baseSponsors,
+          excludedSponsorIds,
+          tags: parsedTags,
+          qrImage: qrImg,
+        }),
+        buildPoster(currentNominee, {
+          format: 'story',
+          category: activeCategory,
+          sponsors: activeSponsors,
+          allSponsors: baseSponsors,
+          excludedSponsorIds,
+          tags: parsedTags,
+          qrImage: qrImg,
+        }),
+      ]);
+
+      if (!isMountedRef.current || seq !== renderSeqRef.current) return;
 
       // Copy to mounted preview canvases
       const copyTo = (from, to) => {
-        if (!to) return;
+        if (!to || !from) return;
         to.width = from.width;
         to.height = from.height;
         const ctx = to.getContext('2d');
@@ -186,14 +265,21 @@ export default function PosterTemplatesTab() {
 
       copyTo(posterCanvas, posterCanvasRef.current);
       copyTo(storyCanvas, storyCanvasRef.current);
-    } catch (_) {
-      // Preview render failed silently without console pollution
+
+      setIsPosterReady(true);
+      setIsPreviewRendering(false);
+    } catch (err) {
+      if (!isMountedRef.current || seq !== renderSeqRef.current) return;
+      console.error('Preview render failed:', err);
+      setIsPreviewRendering(false);
+      setIsPosterReady(false);
     }
-  }, [currentNominee, categoryDetails, templateKey, themeColor, badgeText, tagline, categorySponsors, previewFallbackSponsors, customTags]);
+  }, [currentNominee, categoryDetails, templateKey, themeColor, badgeText, tagline, categorySponsors, previewFallbackSponsors, allSponsors, excludedSponsorIds, customTags]);
 
   useEffect(() => {
     renderPreview();
   }, [renderPreview]);
+
 
   // Save category poster template settings
   const handleSaveTemplate = async (e) => {
@@ -296,20 +382,61 @@ export default function PosterTemplatesTab() {
 
   // Download preview poster PNG
   const handleDownloadPreviewPng = (format = 'poster') => {
+    if (!isPosterReady || isPreviewRendering) return;
     const canvas = format === 'story' ? storyCanvasRef.current : posterCanvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = `Preview-${currentNominee.slug || 'creator'}-${format}.png`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `Telugu-Icon-Awards-${currentNominee.slug || 'nominee'}-${format}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Download PNG failed:', err);
+      setFeedback({ type: 'error', text: 'Could not export poster image. Please reload and try again.' });
+    }
+  };
+
+  // Download preview poster JPG
+  const handleDownloadPreviewJpg = (format = 'poster') => {
+    if (!isPosterReady || isPreviewRendering) return;
+    const canvas = format === 'story' ? storyCanvasRef.current : posterCanvasRef.current;
+    if (!canvas) return;
+    try {
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `Telugu-Icon-Awards-${currentNominee.slug || 'nominee'}-${format}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Download JPG failed:', err);
+      setFeedback({ type: 'error', text: 'Could not export poster image. Please reload and try again.' });
+    }
+  };
+
+  // Copy direct voting link
+  const handleCopyVotingLink = () => {
+    if (!currentNominee) return;
+    const link = voteUrl(currentNominee);
+    navigator.clipboard?.writeText(link).catch(() => {});
+    setFeedback({ type: 'success', text: `✓ Voting URL copied to clipboard: ${link}` });
+    setTimeout(() => setFeedback(null), 3000);
+  };
+
+  // Open direct voting page
+  const handleOpenVotingPage = () => {
+    if (!currentNominee) return;
+    const link = voteUrl(currentNominee);
+    window.open(link, '_blank', 'noopener,noreferrer');
   };
 
   // Download sample campaign kit ZIP
   const handleDownloadZip = async () => {
-    if (!currentNominee || !posterCanvasRef.current) return;
+    if (!currentNominee || !posterCanvasRef.current || !storyCanvasRef.current || !isPosterReady || isDownloadingZip) return;
     setIsDownloadingZip(true);
     try {
       const qrValue = qrUrl(currentNominee);
@@ -572,41 +699,107 @@ export default function PosterTemplatesTab() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-2.5">
-                {categorySponsors.map((sp) => (
-                  <div
-                    key={sp.id || sp.association_id}
-                    className="p-3 rounded-xl bg-ink-900/70 border border-white/8 flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {sp.logo_url ? (
-                        <img
-                          src={getAssetUrl(sp.logo_url)}
-                          alt={sp.name}
-                          className="w-10 h-10 object-contain rounded-lg bg-black/40 p-1 border border-white/10"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-champagne-500/10 border border-champagne-500/20 flex items-center justify-center text-sm font-bold text-champagne-400">
-                          {sp.name ? sp.name[0] : 'S'}
+              <div className="space-y-3">
+                {categorySponsors.map((sp) => {
+                  const sponsorId = sp.sponsor_id || sp.id;
+                  const isMasterActive = Number(sp.is_active) === 1 || sp.is_active === true;
+                  const isExcludedFromPoster = excludedSponsorIds.has(sponsorId);
+
+                  return (
+                    <div
+                      key={sp.id || sp.association_id}
+                      className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        !isMasterActive
+                          ? 'bg-ink-950/80 border-rose-900/30 opacity-70'
+                          : isExcludedFromPoster
+                          ? 'bg-ink-900/50 border-amber-500/20 opacity-80'
+                          : 'bg-ink-900/70 border-white/8'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {sp.logo_url ? (
+                          <img
+                            src={getAssetUrl(sp.logo_url)}
+                            alt={sp.name}
+                            className="w-11 h-11 object-contain rounded-lg bg-black/40 p-1 border border-white/10 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-11 h-11 rounded-lg bg-champagne-500/10 border border-champagne-500/20 flex items-center justify-center text-sm font-bold text-champagne-400 shrink-0">
+                            {sp.name ? sp.name[0] : 'S'}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-white text-xs font-bold truncate">{sp.name}</p>
+                            {/* Master Switch Status Badge */}
+                            {!isMasterActive ? (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-rose-900/60 text-rose-300 border border-rose-500/40">
+                                🔴 Master Switch OFF
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-900/40 text-emerald-300 border border-emerald-500/30">
+                                🟢 Master Active
+                              </span>
+                            )}
+
+                            {/* Poster Visibility Status Badge */}
+                            {isMasterActive && isExcludedFromPoster && (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-900/50 text-amber-300 border border-amber-500/30">
+                                ✕ Excluded from Poster
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-champagne-400 text-[11px] font-semibold mt-0.5">
+                            {sp.role || 'Category Partner'} {sp.tier && `• ${sp.tier.replace(/_/g, ' ')}`}
+                          </p>
+
+                          {!isMasterActive && (
+                            <p className="text-rose-400 text-[10px] mt-0.5">
+                              ⚠️ This sponsor's global switch is OFF in Sponsors list. It will not appear on any poster.
+                            </p>
+                          )}
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-white text-xs font-bold truncate">{sp.name}</p>
-                        <p className="text-champagne-400 text-[11px] font-semibold">{sp.role || 'Category Partner'}</p>
-                        {sp.tier && <p className="text-white/30 text-[10px] uppercase">{sp.tier.replace(/_/g, ' ')}</p>}
+                      </div>
+
+                      {/* Poster Control Buttons */}
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        {isMasterActive && (
+                          isExcludedFromPoster ? (
+                            <button
+                              type="button"
+                              onClick={() => includeSponsorOnPoster(sponsorId)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/70 border border-emerald-500/40 text-xs font-semibold transition-all flex items-center gap-1"
+                              title="Include this sponsor in the poster preview and exports"
+                            >
+                              <span>➕</span>
+                              <span>Include on Poster</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => removeSponsorFromPoster(sponsorId)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-900/40 text-amber-200 hover:bg-amber-900/70 border border-amber-500/40 text-xs font-semibold transition-all flex items-center gap-1"
+                              title="Hide this sponsor from this poster without deleting the link"
+                            >
+                              <span>🚫</span>
+                              <span>Remove from Poster</span>
+                            </button>
+                          )
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSponsor(sponsorId, sp.name)}
+                          className="px-2.5 py-1.5 rounded-lg bg-burgundy-900/30 text-rose-300 hover:bg-burgundy-900/60 border border-burgundy-500/30 text-xs font-semibold transition-all"
+                          title="Permanently remove association from this category"
+                        >
+                          Unlink ✕
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleRemoveSponsor(sp.sponsor_id || sp.id, sp.name)}
-                        className="px-2.5 py-1.5 rounded-lg bg-burgundy-900/30 text-rose-300 hover:bg-burgundy-900/60 border border-burgundy-500/30 text-[11px] font-semibold transition-all"
-                      >
-                        Remove ✕
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -694,16 +887,47 @@ export default function PosterTemplatesTab() {
             </div>
 
             {/* Select Nominee for Preview */}
-            <div className="mt-4">
-              <label className="block text-white/70 text-xs font-semibold mb-1">
-                Preview with Nominee in Category:
-              </label>
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-white/70 text-xs font-semibold">
+                  Selected Nominee for Poster &amp; QR:
+                </label>
+                <span className="text-[10px] text-champagne-400 font-mono">
+                  ID: #{currentNominee?.id} · Code: {currentNominee?.nominee_code || 'TIC26'}
+                </span>
+              </div>
               <select
                 value={selectedNomineeId}
-                onChange={(e) => setSelectedNomineeId(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedNomineeId(val);
+                  const matched = allNominees.find((n) => String(n.id) === String(val));
+                  if (matched && matched.category_id && String(matched.category_id) !== String(selectedCategoryId)) {
+                    setSelectedCategoryId(String(matched.category_id));
+                  }
+                }}
                 className="input-field text-xs font-medium !py-2"
               >
-                {nominees.length > 0 ? (
+                {allNominees.length > 0 ? (
+                  <>
+                    <optgroup label={`Current Category (${categoryDetails?.name || 'Category'})`}>
+                      {nominees.map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {n.full_name} ({n.nominee_code || 'TIC26'}) {n.photo_url ? '📷' : '⚠️ No Photo'}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="All Other Nominees in Database">
+                      {allNominees
+                        .filter((n) => !nominees.some((cn) => cn.id === n.id))
+                        .map((n) => (
+                          <option key={n.id} value={n.id}>
+                            {n.full_name} — {n.category_name || 'Category'} ({n.nominee_code || 'TIC26'}) {n.photo_url ? '📷' : '⚠️ No Photo'}
+                          </option>
+                        ))}
+                    </optgroup>
+                  </>
+                ) : nominees.length > 0 ? (
                   nominees.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.full_name} ({n.nominee_code || 'TIC26'}) {n.photo_url ? '📷' : '⚠️ No Photo'}
@@ -734,7 +958,7 @@ export default function PosterTemplatesTab() {
                   <div className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
                     <span>⚠️</span>
                     <span>
-                      {missingSponsorLogos.length} sponsor(s) have no logo: Typographic cards will be rendered.
+                      {missingSponsorLogos.length} sponsor(s) have no logo: Omitted from poster.
                     </span>
                   </div>
                 ) : (
@@ -746,7 +970,7 @@ export default function PosterTemplatesTab() {
               ) : (
                 <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 text-[11px] flex items-center gap-2">
                   <span>ℹ️</span>
-                  <span>No sponsors: Standard Telugu Icon presenter branding will be displayed.</span>
+                  <span>Zero active sponsors: Sponsor section is completely hidden with no blank gaps.</span>
                 </div>
               )}
 
@@ -757,13 +981,122 @@ export default function PosterTemplatesTab() {
               )}
             </div>
 
+            {/* Quick Sponsor Controls for this Poster */}
+            <div className="p-3.5 rounded-xl bg-ink-900/80 border border-champagne-500/20 space-y-2.5 my-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-champagne-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🤝</span> Sponsors in this Poster
+                </span>
+                <span className="text-[11px] font-semibold text-white/60">
+                  {(() => {
+                    const base = categorySponsors.length > 0
+                      ? categorySponsors
+                      : (previewFallbackSponsors.length > 0 ? previewFallbackSponsors : []);
+                    const visibleCount = base.filter((s) => {
+                      const isMasterActive = Number(s.is_active) === 1 || s.is_active === true || s.is_active === undefined;
+                      const hasLogo = Boolean(s.logo_url || s.logo || s.image_id);
+                      return isMasterActive && hasLogo && !excludedSponsorIds.has(s.sponsor_id || s.id);
+                    }).length;
+                    return `${visibleCount} active on poster`;
+                  })()}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {(() => {
+                  const base = categorySponsors.length > 0
+                    ? categorySponsors
+                    : (previewFallbackSponsors.length > 0 ? previewFallbackSponsors : []);
+                  const activeList = base.filter((s) => {
+                    const isMasterActive = Number(s.is_active) === 1 || s.is_active === true || s.is_active === undefined;
+                    const hasLogo = Boolean(s.logo_url || s.logo || s.image_id);
+                    return isMasterActive && hasLogo && !excludedSponsorIds.has(s.sponsor_id || s.id);
+                  });
+                  const excludedList = base.filter((s) => {
+                    const isMasterActive = Number(s.is_active) === 1 || s.is_active === true || s.is_active === undefined;
+                    return isMasterActive && excludedSponsorIds.has(s.sponsor_id || s.id);
+                  });
+
+                  if (activeList.length === 0 && excludedList.length === 0) {
+                    return (
+                      <p className="text-white/40 text-[11px] italic text-center py-2">
+                        Zero active sponsors. The sponsor section will be completely hidden from the poster.
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {activeList.map((sp) => {
+                        const sId = sp.sponsor_id || sp.id;
+                        return (
+                          <div
+                            key={sId}
+                            className="flex items-center justify-between p-2 rounded-lg bg-black/40 border border-white/5 text-xs gap-2"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                              <span className="text-white font-semibold truncate">{sp.name}</span>
+                              <span className="text-white/40 text-[10px]">({sp.role || 'Partner'})</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeSponsorFromPoster(sId)}
+                              className="px-2 py-0.5 rounded bg-amber-900/40 text-amber-200 hover:bg-amber-900/70 border border-amber-500/40 text-[10px] font-bold shrink-0 transition-all"
+                              title="Remove from this poster preview"
+                            >
+                              Remove ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {excludedList.length > 0 && (
+                        <div className="pt-2 border-t border-white/5 space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-amber-400/80">
+                            Excluded from this Poster ({excludedList.length}):
+                          </span>
+                          {excludedList.map((sp) => {
+                            const sId = sp.sponsor_id || sp.id;
+                            return (
+                              <div
+                                key={sId}
+                                className="flex items-center justify-between p-1.5 rounded-lg bg-black/20 border border-amber-500/20 text-xs opacity-75 gap-2"
+                              >
+                                <span className="text-white/60 line-through text-[11px] truncate">{sp.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => includeSponsorOnPoster(sId)}
+                                  className="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-300 hover:bg-emerald-900/70 border border-emerald-500/40 text-[10px] font-bold shrink-0 transition-all"
+                                >
+                                  + Include
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
             {/* Poster Canvas Preview */}
             <div className="flex justify-center items-center py-2">
               <div
-                className={`relative w-full rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40 transition-all ${
+                className={`relative w-full rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40 bg-black/40 transition-all ${
                   previewFormat === 'story' ? 'max-w-[240px]' : 'max-w-[340px]'
                 }`}
               >
+                {isPreviewRendering && (
+                  <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-[1px] flex items-center justify-center z-10 p-2 text-center">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-ink-900/90 border border-champagne-500/40 text-champagne-300 text-xs shadow-lg">
+                      <span className="w-3.5 h-3.5 rounded-full border-2 border-champagne-400 border-t-transparent animate-spin inline-block" />
+                      <span>Updating Preview...</span>
+                    </div>
+                  </div>
+                )}
                 <canvas
                   ref={posterCanvasRef}
                   className={`w-full h-auto block ${previewFormat === 'poster' ? '' : 'hidden'}`}
@@ -776,41 +1109,92 @@ export default function PosterTemplatesTab() {
             </div>
 
             {/* Action buttons */}
-            <div className="pt-3 border-t border-white/5 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleRegeneratePoster}
-                disabled={isRegenerating}
-                className="py-2.5 px-3 rounded-xl bg-champagne-500/20 text-champagne-300 hover:bg-champagne-500/30 border border-champagne-500/40 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-              >
-                <span>{isRegenerating ? '⏳' : '🔄'}</span>
-                <span>{isRegenerating ? 'Regenerating...' : 'Regenerate Poster'}</span>
-              </button>
+            <div className="pt-3 border-t border-white/5 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={renderPreview}
+                  disabled={isPreviewRendering}
+                  className="py-2.5 px-3 rounded-xl bg-white/5 text-white/90 hover:bg-white/10 border border-white/10 text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>👁️</span>
+                  <span>{isPreviewRendering ? 'Rendering...' : 'Preview Poster'}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => handleDownloadPreviewPng('poster')}
-                className="btn-gold !py-2.5 text-xs font-bold"
-              >
-                ⬇ Download (PNG)
-              </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTemplate}
+                  disabled={isSavingTemplate}
+                  className="py-2.5 px-3 rounded-xl bg-champagne-500/20 text-champagne-300 hover:bg-champagne-500/30 border border-champagne-500/40 text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>💾</span>
+                  <span>{isSavingTemplate ? 'Saving...' : 'Save Changes'}</span>
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => handleDownloadPreviewPng('story')}
-                className="py-2 px-3 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 border border-white/10 text-xs font-semibold col-span-1"
-              >
-                📱 Download Story (9:16)
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleRegeneratePoster}
+                  disabled={isRegenerating || isPreviewRendering}
+                  className="py-2.5 px-3 rounded-xl bg-ink-800 text-champagne-300 hover:bg-ink-700 border border-champagne-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>{isRegenerating ? '⏳' : '⚡'}</span>
+                  <span>{isRegenerating ? 'Generating...' : 'Generate Poster'}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadZip}
-                disabled={isDownloadingZip}
-                className="py-2 px-3 rounded-xl bg-ink-800 text-champagne-400 hover:bg-ink-700 border border-champagne-500/40 text-xs font-bold col-span-1 disabled:opacity-40"
-              >
-                {isDownloadingZip ? 'Packaging...' : '📦 Sample Kit (ZIP)'}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPreviewPng(previewFormat)}
+                  disabled={!isPosterReady || isPreviewRendering || isRegenerating || isDownloadingZip}
+                  className="btn-gold !py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>⬇</span>
+                  <span>Download PNG</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPreviewJpg(previewFormat)}
+                  disabled={!isPosterReady || isPreviewRendering || isRegenerating || isDownloadingZip}
+                  className="py-2 px-3 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 border border-white/10 text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>🖼️</span>
+                  <span>Download JPG</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyVotingLink}
+                  className="py-2 px-3 rounded-xl bg-emerald-950/40 text-emerald-300 hover:bg-emerald-950/70 border border-emerald-500/30 text-xs font-semibold flex items-center justify-center gap-1.5"
+                >
+                  <span>🔗</span>
+                  <span>Copy Voting Link</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenVotingPage}
+                  className="py-2 px-3 rounded-xl bg-blue-950/40 text-blue-300 hover:bg-blue-950/70 border border-blue-500/30 text-xs font-semibold flex items-center justify-center gap-1.5"
+                >
+                  <span>🌐</span>
+                  <span>Open Voting Page ↗</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadZip}
+                  disabled={!isPosterReady || isPreviewRendering || isDownloadingZip}
+                  className="py-2 px-3 rounded-xl bg-ink-900 text-champagne-400 hover:bg-ink-800 border border-champagne-500/40 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>📦</span>
+                  <span>{isDownloadingZip ? 'Packaging...' : 'Sample Kit (ZIP)'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

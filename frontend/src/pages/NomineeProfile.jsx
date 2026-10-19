@@ -151,7 +151,7 @@ export default function NomineeProfile() {
             try {
               const res = await api.get(`/categories/${data.category_id}/sponsors`);
               if (Array.isArray(res)) catSpons = res;
-            } catch (_) {}
+            } catch (_) { }
           }
 
           // 2. Fetch global brand partners (e.g. Title Partner, Co-Powered By)
@@ -159,7 +159,7 @@ export default function NomineeProfile() {
           try {
             const globalRes = await api.get('/sponsors');
             if (Array.isArray(globalRes)) globalSpons = globalRes;
-          } catch (_) {}
+          } catch (_) { }
 
           // Combine both without duplicates so every active sponsor is visible
           const combined = [...catSpons];
@@ -170,9 +170,9 @@ export default function NomineeProfile() {
                 ...gs,
                 role: gs.role || (
                   gs.tier === 'title_partner' ? 'Title Partner' :
-                  gs.tier === 'powered_by' ? 'Powered By' :
-                  gs.tier === 'co_powered_by' ? 'Co-Powered By' :
-                  'Brand Partner'
+                    gs.tier === 'powered_by' ? 'Powered By' :
+                      gs.tier === 'co_powered_by' ? 'Co-Powered By' :
+                        'Brand Partner'
                 ),
               });
             }
@@ -191,7 +191,7 @@ export default function NomineeProfile() {
           });
 
           setCategorySponsors(combined);
-        } catch (_) {}
+        } catch (_) { }
       } else {
         setNotFound(true);
       }
@@ -412,12 +412,18 @@ export default function NomineeProfile() {
             </p>
           )}
 
-          <div className="mt-2 text-center">
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            <Link
+              to={`/poster?nominee=${nominee.slug || nominee.id}`}
+              className="inline-flex items-center gap-1.5 text-xs text-champagne-300 hover:text-white font-semibold py-1.5 px-3.5 rounded-xl bg-champagne-500/15 hover:bg-champagne-500/25 border border-champagne-500/30 transition-all shadow-sm"
+            >
+              <span>🎨</span> Create &amp; Download Poster →
+            </Link>
             <Link
               to={`/nominee-kit?nominee=${nominee.slug || nominee.id}`}
-              className="inline-flex items-center gap-1.5 text-xs text-champagne-300 hover:text-white font-semibold py-1.5 px-3.5 rounded-xl bg-champagne-500/10 hover:bg-champagne-500/20 border border-champagne-500/30 transition-all shadow-sm"
+              className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white font-semibold py-1.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 transition-all shadow-sm"
             >
-              <span>🖼️</span> View &amp; Download Campaign Poster →
+              <span>📦</span> Full Campaign Kit
             </Link>
           </div>
         </div>

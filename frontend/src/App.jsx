@@ -25,6 +25,7 @@ import CategoryDetail from './pages/CategoryDetail';
 import LegalPages from './pages/LegalPages';
 import NomineeKit from './pages/NomineeKit';
 import NomineeStatus from './pages/NomineeStatus';
+import PosterPage from './pages/PosterPage';
 
 // Admin
 import AdminLogin from './pages/admin/AdminLogin';
@@ -54,6 +55,8 @@ export default function App() {
                     <Route path="/vote/:slug" element={<VoteRedirect />} />
                     <Route path="/nominee-kit" element={<NomineeKit />} />
                     <Route path="/nominee-status" element={<NomineeStatus />} />
+                    <Route path="/poster" element={<PosterPage />} />
+                    <Route path="/poster/:id" element={<PosterPage />} />
                     <Route path="/tickets" element={<TicketsPage />} />
                     <Route path="/past-events" element={<PastEventsPage />} />
                     <Route path="/past-events/:slug" element={<PastEventDetail />} />

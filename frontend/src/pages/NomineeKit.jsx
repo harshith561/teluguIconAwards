@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import PageTransition from '../components/PageTransition';
 import QrBlock from '../components/QrBlock';
 import { api, getAssetUrl } from '../api';
@@ -17,6 +17,7 @@ import {
 import {
   buildPoster,
   buildCampaignKitZip,
+  createPosterFilename,
   POSTER_TEMPLATES,
   POSTER_WIDTH,
   POSTER_HEIGHT,
@@ -24,6 +25,8 @@ import {
   STORY_HEIGHT,
   loadImage,
 } from '../lib/posterRenderer';
+import NomineeHtmlPoster from '../components/NomineeHtmlPoster';
+import { exportHtmlPosterToBlob, downloadHtmlPoster } from '../lib/htmlPosterExporter';
 
 export default function NomineeKit() {
   const [searchParams] = useSearchParams();
@@ -33,62 +36,175 @@ export default function NomineeKit() {
   const [categorySponsors, setCategorySponsors] = useState([]);
   const [search, setSearch] = useState('');
   const [copiedKey, setCopiedKey] = useState(null);
+  const [qrDataUrlState, setQrDataUrlState] = useState(null);
+
+  // Production-grade asynchronous lifecycle & download readiness states
+  const [isLoadingNominees, setIsLoadingNominees] = useState(true);
+  const [isLoadingPosterData, setIsLoadingPosterData] = useState(false);
+  const [isRenderingPoster, setIsRenderingPoster] = useState(false);
+  const [isPosterReady, setIsPosterReady] = useState(false);
   const [posterWarning, setPosterWarning] = useState(null);
+  const [posterError, setPosterError] = useState(null);
+
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [zipSuccessMessage, setZipSuccessMessage] = useState(null);
 
   const posterRef = useRef(null);
   const storyRef = useRef(null);
+  const posterHtmlRef = useRef(null);
+  const storyHtmlRef = useRef(null);
   const qrImageRef = useRef(null);
+  const renderSeqRef = useRef(0);
 
-  // Load active nominees
+  // 1. Load active nominees on mount with cancellation cleanup
   useEffect(() => {
-    api.get('/nominees').then((data) => {
-      if (Array.isArray(data)) setNominees(data);
-    }).catch(() => {});
+    let cancelled = false;
+    setIsLoadingNominees(true);
+
+    api.get('/nominees')
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data)) {
+          setNominees(data);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to load nominees list:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingNominees(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Sync selected nominee from query parameter or default to first
+  // 2. Sync selected nominee from query parameter or default to first (stable state reference)
   useEffect(() => {
     if (!nominees.length) return;
     const requested = searchParams.get('nominee');
-    const match = requested
+    const matched = requested
       ? nominees.find((n) => String(n.slug) === requested || String(n.id) === requested)
       : null;
-    setSelectedNominee(match || nominees[0]);
+    const target = matched || nominees[0];
+    setSelectedNominee((prev) => {
+      if (prev && target && String(prev.id) === String(target.id)) {
+        return prev;
+      }
+      return target || null;
+    });
   }, [nominees, searchParams]);
 
-  // Fetch full category poster data & category sponsors whenever selected nominee changes
+  // 3. Atomically coordinated data fetching and asynchronous canvas rendering pipeline
   useEffect(() => {
-    if (!selectedNominee) return;
-    let cancelled = false;
+    if (!selectedNominee) return undefined;
 
-    // Fetch poster data from API
+    let cancelled = false;
+    const currentSeq = ++renderSeqRef.current;
+
+    setIsPosterReady(false);
+    setIsLoadingPosterData(true);
+    setIsRenderingPoster(false);
+    setPosterError(null);
+    setPosterWarning(null);
+
+    // Track nominee campaign kit view event
+    track(selectedNominee.id, 'kit_view');
+
+    // Fetch complete poster data from backend
     api.get(`/nominees/${selectedNominee.id}/poster-data`)
-      .then((data) => {
-        if (cancelled) return;
-        if (data.category) setCategoryData(data.category);
-        if (Array.isArray(data.sponsors)) setCategorySponsors(data.sponsors);
+      .then(async (data) => {
+        if (cancelled || currentSeq !== renderSeqRef.current) return;
+
+        // Data validation
+        if (!data || typeof data !== 'object') {
+          throw new Error('Malformed poster data payload received from server');
+        }
+
+        const category = data.category || (selectedNominee.category_id ? {
+          id: selectedNominee.category_id,
+          name: selectedNominee.category_name,
+        } : null);
+
+        const sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
+
+        setCategoryData(category);
+        setCategorySponsors(sponsors);
+        setIsLoadingPosterData(false);
+        setIsRenderingPoster(true);
+
         if (data.validation?.warnings?.length) {
           setPosterWarning(data.validation.warnings.join(' '));
-        } else {
-          setPosterWarning(null);
         }
+
+        // Generate genuine scannable QR Code
+        const qrValue = qrUrl(selectedNominee);
+        let qrSource;
+        try {
+          qrSource = await qrDataUrl(qrValue, 640);
+        } catch (_) {
+          qrSource = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue)}&size=640x640&margin=8&format=png`;
+        }
+
+        const qrImg = await loadImage(qrSource);
+        if (cancelled || currentSeq !== renderSeqRef.current) return;
+        qrImageRef.current = qrImg;
+        setQrDataUrlState(qrSource);
+
+        if (!qrImg) {
+          setPosterWarning((prev) =>
+            prev ? `${prev} QR code image could not be loaded.` : 'The QR code image could not be loaded.'
+          );
+        }
+
+        // Render both 4:5 Poster and 9:16 Story canvases
+        const [posterCanvas, storyCanvas] = await Promise.all([
+          buildPoster(selectedNominee, {
+            format: 'poster',
+            category,
+            sponsors,
+            qrImage: qrImg,
+          }),
+          buildPoster(selectedNominee, {
+            format: 'story',
+            category,
+            sponsors,
+            qrImage: qrImg,
+          }),
+        ]);
+
+        if (cancelled || currentSeq !== renderSeqRef.current) return;
+
+        // Copy rendered result to the mounted preview canvases
+        const copyToView = (from, to) => {
+          if (!to || !from) return;
+          to.width = from.width;
+          to.height = from.height;
+          const ctx = to.getContext('2d');
+          ctx.drawImage(from, 0, 0);
+        };
+
+        copyToView(posterCanvas, posterRef.current);
+        copyToView(storyCanvas, storyRef.current);
+
+        setIsRenderingPoster(false);
+        setIsPosterReady(true);
       })
-      .catch(() => {
-        // Fallback: fetch directly from category sponsors endpoint
-        if (selectedNominee.category_id) {
-          api.get(`/categories/${selectedNominee.category_id}/sponsors`)
-            .then((spons) => {
-              if (cancelled) return;
-              if (Array.isArray(spons)) setCategorySponsors(spons);
-            })
-            .catch(() => {});
-        }
+      .catch((error) => {
+        if (cancelled || currentSeq !== renderSeqRef.current) return;
+        console.error('Nominee campaign kit workflow failure:', error);
+        setIsLoadingPosterData(false);
+        setIsRenderingPoster(false);
+        setIsPosterReady(false);
+        setPosterError('Failed to generate poster. Please check your network connection and reload.');
       });
 
-    return () => { cancelled = true; };
-  }, [selectedNominee]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNominee?.id]);
 
   const copyToClipboard = useCallback((text, key) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -105,79 +221,99 @@ export default function NomineeKit() {
     link.remove();
   };
 
-  // Render both canvases whenever selected nominee or category sponsors change
-  useEffect(() => {
-    if (!selectedNominee) return undefined;
-    let cancelled = false;
+  // Safe handler for poster PNG / JPG export
+  // Filename: CandidateName_FunctionName.png (Requirement 15)
+  const handleDownloadPoster = async (format = 'png') => {
+    if (!selectedNominee) return;
+    try {
+      track(selectedNominee.id, 'poster_download', { source: `poster_${format}` });
 
-    (async () => {
-      try {
-        track(selectedNominee.id, 'kit_view');
-        const qrValue = qrUrl(selectedNominee);
-
-        let qrSource;
-        try {
-          qrSource = await qrDataUrl(qrValue, 640);
-        } catch (_) {
-          qrSource = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue)}&size=640x640&margin=8&format=png`;
-        }
-        const qrImg = await loadImage(qrSource);
-        qrImageRef.current = qrImg;
-
-        // Render 4:5 Poster and 9:16 Story using category template and category sponsors
-        const posterCanvas = await buildPoster(selectedNominee, {
-          format: 'poster',
-          category: categoryData,
-          sponsors: categorySponsors,
-          qrImage: qrImg,
+      // Prefer direct high-res HTML-to-Image download
+      if (posterHtmlRef.current) {
+        await downloadHtmlPoster(posterHtmlRef.current, {
+          candidateName: selectedNominee.full_name,
+          categoryName: categoryData?.name || selectedNominee.category_name,
+          format,
         });
-
-        const storyCanvas = await buildPoster(selectedNominee, {
-          format: 'story',
-          category: categoryData,
-          sponsors: categorySponsors,
-          qrImage: qrImg,
-        });
-
-        if (cancelled) return;
-
-        const copyToView = (from, to) => {
-          if (!to) return;
-          to.width = from.width;
-          to.height = from.height;
-          const ctx = to.getContext('2d');
-          ctx.drawImage(from, 0, 0);
-        };
-
-        copyToView(posterCanvas, posterRef.current);
-        copyToView(storyCanvas, storyRef.current);
-
-        if (!qrImg) {
-          setPosterWarning('The QR code could not be generated. Do not print this poster without reloading — the printed URL is still correct.');
-        }
-      } catch (error) {
-        setPosterWarning('Poster generation failed. Please reload this page.');
+        return;
       }
-    })();
 
-    return () => { cancelled = true; };
-  }, [selectedNominee, categoryData, categorySponsors]);
+      // Fallback to canvas export
+      if (posterRef.current && isPosterReady) {
+        const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
+        const quality = format === 'jpg' ? 0.95 : undefined;
+        const dataUrl = posterRef.current.toDataURL(mime, quality);
+        const baseName = createPosterFilename(
+          selectedNominee.full_name,
+          categoryData?.name || selectedNominee.category_name
+        ).replace(/\.png$/, '');
+        downloadDataUrl(dataUrl, `${baseName}.${format}`);
+      }
+    } catch (err) {
+      console.error('Poster export error:', err);
+      setPosterWarning('Poster download failed. Please reload the page or use Poster Studio.');
+    }
+  };
 
-  // Handle Full Campaign Kit ZIP Download
+  // Safe handler for story PNG / JPG export
+  const handleDownloadStory = async (format = 'png') => {
+    if (!selectedNominee) return;
+    try {
+      track(selectedNominee.id, 'poster_download', { source: `story_${format}` });
+
+      // Prefer direct high-res HTML-to-Image download
+      if (storyHtmlRef.current) {
+        const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
+        const ext = format === 'jpg' ? 'jpg' : 'png';
+        const storyBlob = await exportHtmlPosterToBlob(storyHtmlRef.current, { mimeType: mime });
+        if (storyBlob) {
+          const storySlug = (selectedNominee.slug || selectedNominee.id).toString();
+          const url = URL.createObjectURL(storyBlob);
+          downloadDataUrl(url, `Telugu-Icon-Story-${storySlug}.${ext}`);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+          return;
+        }
+      }
+
+      // Fallback to canvas export
+      if (storyRef.current && isPosterReady) {
+        const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
+        const quality = format === 'jpg' ? 0.95 : undefined;
+        const dataUrl = storyRef.current.toDataURL(mime, quality);
+        const storySlug = (selectedNominee.slug || selectedNominee.id).toString();
+        downloadDataUrl(dataUrl, `Telugu-Icon-Story-${storySlug}.${format}`);
+      }
+    } catch (err) {
+      console.error('Story export error:', err);
+      setPosterWarning('Story download failed. Please reload the page or use Poster Studio.');
+    }
+  };
+
+  // Safe handler for Full Campaign Kit ZIP Download
   const handleDownloadZip = async () => {
-    if (!selectedNominee || !posterRef.current || isGeneratingZip) return;
+    if (!selectedNominee || isGeneratingZip) return;
     setIsGeneratingZip(true);
     setZipSuccessMessage(null);
 
     try {
       track(selectedNominee.id, 'kit_download', { source: 'zip' });
 
-      // Generate QR data url for ZIP
+      // Generate high-resolution QR data URL for ZIP
       const qrValue = qrUrl(selectedNominee);
       let qrPngData = null;
       try {
         qrPngData = await qrDataUrl(qrValue, 1200);
       } catch (_) {}
+
+      // Get high-res blobs from HTML posters if mounted
+      let posterBlob = null;
+      let storyBlob = null;
+      if (posterHtmlRef.current) {
+        posterBlob = await exportHtmlPosterToBlob(posterHtmlRef.current, { mimeType: 'image/png' });
+      }
+      if (storyHtmlRef.current) {
+        storyBlob = await exportHtmlPosterToBlob(storyHtmlRef.current, { mimeType: 'image/png' });
+      }
 
       const { blob, filename } = await buildCampaignKitZip({
         nominee: selectedNominee,
@@ -185,10 +321,11 @@ export default function NomineeKit() {
         sponsors: categorySponsors,
         posterCanvas: posterRef.current,
         storyCanvas: storyRef.current,
+        posterBlob,
+        storyBlob,
         qrDataUrl: qrPngData,
       });
 
-      // Trigger browser download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -201,6 +338,7 @@ export default function NomineeKit() {
       setZipSuccessMessage('✓ Campaign Kit ZIP downloaded successfully!');
       setTimeout(() => setZipSuccessMessage(null), 4000);
     } catch (err) {
+      console.error('Campaign kit ZIP packaging error:', err);
       alert('Could not package ZIP kit. Please try downloading posters individually.');
     } finally {
       setIsGeneratingZip(false);
@@ -211,7 +349,9 @@ export default function NomineeKit() {
     return (
       <PageTransition>
         <div className="min-h-screen bg-ink-900 flex items-center justify-center">
-          <p className="text-white/40 text-sm">Loading campaign kit...</p>
+          <p className="text-white/40 text-sm">
+            {isLoadingNominees ? 'Loading campaign kit...' : 'No approved nominees found.'}
+          </p>
         </div>
       </PageTransition>
     );
@@ -219,11 +359,12 @@ export default function NomineeKit() {
 
   const page = nomineeUrl(selectedNominee);
   const vote = voteUrl(selectedNominee);
-  const kitUrl = getSiteUrl().replace(/^https?:\/\//, '');
   const categoryTitle = categoryData?.name || selectedNominee.category_name || 'Creator of the Year';
   const currentTemplate = POSTER_TEMPLATES[categoryData?.poster_template || selectedNominee.poster_template || 'gold_prestige'] || POSTER_TEMPLATES.gold_prestige;
 
   const waMessage = `🏆 Hey friends and family! I'm nominated for *${categoryTitle}* at the *${EVENT}*!\n\nPlease take 30 seconds to cast your OTP-verified vote for *${selectedNominee.full_name}*:\n\n👉 ${vote}\n\nNominee Code: ${selectedNominee.nominee_code || 'TIC26'}\nThank you for believing in me! 🙏✨ #TeluguIconAwards2026 #TIA2026`;
+
+  const isBusy = !isPosterReady || isRenderingPoster || isLoadingPosterData || isGeneratingZip;
 
   const assets = [
     { key: 'zip', icon: '📦', label: 'Full Campaign Kit (ZIP)', value: 'Includes Poster, Story, QR & Copy', kind: 'zip' },
@@ -257,11 +398,17 @@ export default function NomineeKit() {
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <button
               onClick={handleDownloadZip}
-              disabled={isGeneratingZip}
-              className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-champagne-400 to-champagne-600 text-ink-900 font-bold text-sm sm:text-base hover:brightness-110 shadow-gold transition-all flex items-center gap-2"
+              disabled={isBusy}
+              className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-champagne-400 to-champagne-600 text-ink-900 font-bold text-sm sm:text-base hover:brightness-110 shadow-gold transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span>{isGeneratingZip ? '⏳' : '📦'}</span>
-              <span>{isGeneratingZip ? 'Packaging Campaign Kit...' : 'Download Full Campaign Kit (ZIP)'}</span>
+              <span>{isGeneratingZip ? '⏳' : isRenderingPoster ? '⚡' : '📦'}</span>
+              <span>
+                {isGeneratingZip
+                  ? 'Packaging Campaign Kit...'
+                  : isRenderingPoster || isLoadingPosterData
+                  ? 'Rendering Nominee Poster...'
+                  : 'Download Full Campaign Kit (ZIP)'}
+              </span>
             </button>
           </div>
           {zipSuccessMessage && (
@@ -272,6 +419,21 @@ export default function NomineeKit() {
 
       <section className="py-10 sm:py-14 bg-ink-900 min-h-screen">
         <div className="max-w-7xl mx-auto px-4">
+          {posterError && (
+            <div className="mb-6 px-4 py-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs flex items-center justify-between gap-3">
+              <span>{posterError}</span>
+              <button
+                onClick={() => {
+                  renderSeqRef.current++;
+                  setSelectedNominee({ ...selectedNominee });
+                }}
+                className="px-3 py-1 rounded-lg bg-red-500/20 text-red-300 font-bold hover:bg-red-500/30 transition-all"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {posterWarning && (
             <div className="mb-6 px-4 py-3 rounded-xl bg-champagne-900/30 border border-champagne-500/40 text-champagne-200 text-xs">
               {posterWarning}
@@ -318,47 +480,126 @@ export default function NomineeKit() {
               <div className="card-gold p-6 text-center">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold font-display text-white">Official Nominee Poster (4:5)</h3>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-champagne-500/15 text-champagne-300 border border-champagne-500/30">
-                    Template: {currentTemplate.name.split(' ')[0]}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to={`/poster?nominee=${selectedNominee.slug || selectedNominee.id}`}
+                      className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-champagne-500/20 text-champagne-300 border border-champagne-500/30 hover:bg-champagne-500/30 transition-all flex items-center gap-1"
+                      title="Open interactive HTML & Tailwind Poster Studio"
+                    >
+                      <span>🎨</span>
+                      <span>Studio</span>
+                    </Link>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-champagne-500/15 text-champagne-300 border border-champagne-500/30">
+                      HTML5
+                    </span>
+                  </div>
                 </div>
-                <div className="relative mx-auto max-w-[380px] rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40">
-                  <canvas ref={posterRef} className="w-full h-auto block" />
+
+                {/* HTML Poster Preview (1080x1620 scaled to 360x540) */}
+                <div className="relative mx-auto w-[360px] h-[540px] rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40 bg-black/40 flex items-start justify-center">
+                  {(isLoadingPosterData || isRenderingPoster) && (
+                    <div className="absolute inset-0 bg-ink-950/80 backdrop-blur-xs flex flex-col items-center justify-center gap-3 z-30 p-4 text-center">
+                      <div className="w-8 h-8 rounded-full border-2 border-champagne-400 border-t-transparent animate-spin" />
+                      <span className="text-champagne-300 font-bold text-xs">
+                        {isLoadingPosterData ? 'Fetching Campaign Data...' : 'Rendering Golden Nominee Poster...'}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ width: '1080px', height: '1620px', transform: 'scale(0.333333)', transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}>
+                    <NomineeHtmlPoster
+                      ref={posterHtmlRef}
+                      nominee={selectedNominee}
+                      category={categoryData}
+                      sponsors={categorySponsors}
+                      qrUrl={qrDataUrlState || qrUrl(selectedNominee)}
+                      event={{
+                        date: '16 NOVEMBER 2026',
+                        venue: 'SHILPAKALA VEDIKA, HYDERABAD',
+                      }}
+                    />
+                  </div>
+                  <canvas ref={posterRef} className="hidden" />
                 </div>
-                <div className="mt-6 flex flex-col sm:flex-row gap-2 justify-center max-w-[380px] mx-auto">
+
+                <div className="mt-6 grid grid-cols-2 gap-2 max-w-[380px] mx-auto">
                   <button
-                    onClick={() => {
-                      track(selectedNominee.id, 'poster_download', { source: 'poster' });
-                      downloadDataUrl(posterRef.current.toDataURL('image/png'), `Telugu-Icon-Poster-${selectedNominee.slug || selectedNominee.id}.png`);
-                    }}
-                    className="flex-1 py-3 rounded-xl bg-champagne-500 text-ink-900 font-bold text-xs hover:bg-champagne-400 transition-all shadow-gold"
+                    onClick={() => handleDownloadPoster('png')}
+                    disabled={isBusy}
+                    className="py-2.5 px-3 rounded-xl bg-champagne-500 text-ink-900 font-bold text-xs hover:bg-champagne-400 transition-all shadow-gold disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Download Poster (PNG) ↓
+                    {isRenderingPoster ? 'Rendering...' : 'Download PNG ↓'}
+                  </button>
+                  <button
+                    onClick={() => handleDownloadPoster('jpg')}
+                    disabled={isBusy}
+                    className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Download JPG ↓
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(voteUrl(selectedNominee), 'voting-link-btn')}
+                    className="py-2.5 px-3 rounded-xl bg-emerald-950/40 text-emerald-300 hover:bg-emerald-950/70 border border-emerald-500/30 text-xs font-semibold transition-all"
+                  >
+                    {copiedKey === 'voting-link-btn' ? '✓ Link Copied!' : '🔗 Copy Voting Link'}
                   </button>
                   <button
                     onClick={handleDownloadZip}
-                    disabled={isGeneratingZip}
-                    className="py-3 px-4 rounded-xl bg-ink-800 border border-champagne-500/40 text-champagne-400 font-bold text-xs hover:bg-ink-700 transition-all"
+                    disabled={isBusy}
+                    className="py-2.5 px-3 rounded-xl bg-ink-800 border border-champagne-500/40 text-champagne-400 font-bold text-xs hover:bg-ink-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    📦 Full Kit (ZIP)
+                    {isGeneratingZip ? 'Packaging...' : '📦 Full Kit (ZIP)'}
                   </button>
                 </div>
               </div>
 
               <div className="card-gold p-6 text-center">
-                <h3 className="text-lg font-bold font-display text-white mb-4">Instagram Story (9:16)</h3>
-                <div className="relative mx-auto max-w-[240px] rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40">
-                  <canvas ref={storyRef} className="w-full h-auto block" />
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold font-display text-white">Instagram Story (9:16)</h3>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-champagne-500/15 text-champagne-300 border border-champagne-500/30">
+                    Story
+                  </span>
                 </div>
-                <button
-                  onClick={() => {
-                    track(selectedNominee.id, 'poster_download', { source: 'story' });
-                    downloadDataUrl(storyRef.current.toDataURL('image/png'), `Telugu-Icon-Story-${selectedNominee.slug || selectedNominee.id}.png`);
-                  }}
-                  className="mt-6 w-full max-w-[240px] py-3.5 rounded-xl bg-champagne-500 text-ink-900 font-bold text-sm hover:bg-champagne-400 transition-all shadow-gold"
-                >
-                  Download Story (PNG) ↓
-                </button>
+
+                {/* HTML Story Preview (1080x1920 scaled to 240x426) */}
+                <div className="relative mx-auto w-[240px] h-[426px] rounded-2xl overflow-hidden shadow-2xl border border-champagne-500/40 bg-black/40 flex items-start justify-center">
+                  {(isLoadingPosterData || isRenderingPoster) && (
+                    <div className="absolute inset-0 bg-ink-950/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2 z-30 p-2 text-center">
+                      <div className="w-6 h-6 rounded-full border-2 border-champagne-400 border-t-transparent animate-spin" />
+                      <span className="text-champagne-300 font-bold text-[11px]">Rendering Story...</span>
+                    </div>
+                  )}
+                  <div style={{ width: '1080px', height: '1920px', transform: 'scale(0.222222)', transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}>
+                    <NomineeHtmlPoster
+                      ref={storyHtmlRef}
+                      nominee={selectedNominee}
+                      category={categoryData}
+                      sponsors={categorySponsors}
+                      qrUrl={qrDataUrlState || qrUrl(selectedNominee)}
+                      format="story"
+                      event={{
+                        date: '16 NOVEMBER 2026',
+                        venue: 'SHILPAKALA VEDIKA, HYDERABAD',
+                      }}
+                    />
+                  </div>
+                  <canvas ref={storyRef} className="hidden" />
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-2 max-w-[240px] mx-auto">
+                  <button
+                    onClick={() => handleDownloadStory('png')}
+                    disabled={isBusy}
+                    className="py-2.5 px-2 rounded-xl bg-champagne-500 text-ink-900 font-bold text-xs hover:bg-champagne-400 transition-all shadow-gold disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Story (PNG) ↓
+                  </button>
+                  <button
+                    onClick={() => handleDownloadStory('jpg')}
+                    disabled={isBusy}
+                    className="py-2.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Story (JPG) ↓
+                  </button>
+                </div>
               </div>
 
               {/* Category Sponsors Information Block */}
@@ -418,8 +659,8 @@ export default function NomineeKit() {
                   </div>
                   <button
                     onClick={handleDownloadZip}
-                    disabled={isGeneratingZip}
-                    className="shrink-0 px-3.5 py-2 rounded-xl bg-champagne-500 text-ink-900 font-bold text-xs hover:bg-champagne-400 shadow-gold transition-all"
+                    disabled={isBusy}
+                    className="shrink-0 px-3.5 py-2 rounded-xl bg-champagne-500 text-ink-900 font-bold text-xs hover:bg-champagne-400 shadow-gold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {isGeneratingZip ? 'Packaging...' : '⬇ Download ZIP'}
                   </button>
@@ -459,8 +700,8 @@ export default function NomineeKit() {
                       {asset.kind === 'zip' && (
                         <button
                           onClick={handleDownloadZip}
-                          disabled={isGeneratingZip}
-                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500 text-ink-900 text-[10px] font-bold hover:bg-champagne-400"
+                          disabled={isBusy}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500 text-ink-900 text-[10px] font-bold hover:bg-champagne-400 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           {isGeneratingZip ? 'Generating...' : '↓ Download'}
                         </button>
@@ -477,11 +718,9 @@ export default function NomineeKit() {
 
                       {(asset.kind === 'poster' || asset.kind === 'poster+copy') && (
                         <button
-                          onClick={() => {
-                            track(selectedNominee.id, 'poster_download', { source: asset.key });
-                            downloadDataUrl(posterRef.current.toDataURL('image/png'), `Telugu-Icon-Poster-${selectedNominee.slug || selectedNominee.id}.png`);
-                          }}
-                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500/10 text-champagne-400 text-[10px] font-bold border border-champagne-500/30 hover:bg-champagne-500/20"
+                          onClick={() => handleDownloadPoster('png')}
+                          disabled={isBusy}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500/10 text-champagne-400 text-[10px] font-bold border border-champagne-500/30 hover:bg-champagne-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           ↓ PNG
                         </button>
@@ -489,11 +728,9 @@ export default function NomineeKit() {
 
                       {asset.kind === 'story' && (
                         <button
-                          onClick={() => {
-                            track(selectedNominee.id, 'poster_download', { source: asset.key });
-                            downloadDataUrl(storyRef.current.toDataURL('image/png'), `Telugu-Icon-Story-${selectedNominee.slug || selectedNominee.id}.png`);
-                          }}
-                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500/10 text-champagne-400 text-[10px] font-bold border border-champagne-500/30 hover:bg-champagne-500/20"
+                          onClick={() => handleDownloadStory('png')}
+                          disabled={isBusy}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-champagne-500/10 text-champagne-400 text-[10px] font-bold border border-champagne-500/30 hover:bg-champagne-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           ↓ PNG
                         </button>

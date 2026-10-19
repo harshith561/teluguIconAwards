@@ -11,6 +11,7 @@ const CORE_LINKS = [
 ];
 
 const EXPLORE_LINKS = [
+  { label: 'Poster Studio', path: '/poster', icon: '🎨', desc: 'Dynamic HTML nominee poster & browser download' },
   { label: 'Campaign Posters & Kit', path: '/nominee-kit', icon: '🖼️', desc: 'Download official posters & stories' },
   { label: 'Past Events', path: '/past-events', icon: '🏛️', desc: 'Archive & past editions' },
   { label: 'Photo Gallery', path: '/gallery', icon: '📸', desc: 'Event captures & red carpet' },

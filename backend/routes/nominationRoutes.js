@@ -9,20 +9,19 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, 'nomination-' + unique + path.extname(file.originalname));
-  },
-});
+const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1 MB limit
+
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_SIZE },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|gif/i;
-    if (allowed.test(path.extname(file.originalname))) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
+    const mime = (file.mimetype || '').toLowerCase();
+    if (ALLOWED_IMAGE_MIMES.includes(mime)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid image format. Only JPEG, PNG, and WebP images are allowed.'));
+    }
   },
 });
 
@@ -84,7 +83,17 @@ router.post('/', upload.single('photo'), async (req, res) => {
       return res.status(400).json({ message: 'Nominations are currently closed' });
     }
 
-    const photo_url = req.file ? ('/uploads/' + req.file.filename) : null;
+    let photo_url = null;
+    if (req.file && req.file.buffer) {
+      if (req.file.size > MAX_IMAGE_SIZE || req.file.buffer.length > MAX_IMAGE_SIZE) {
+        return res.status(400).json({ message: 'Image must be smaller than or equal to 1 MB' });
+      }
+      const [imgRes] = await pool.query(
+        'INSERT INTO images (original_filename, mime_type, file_size, image_data, section) VALUES (?, ?, ?, ?, ?)',
+        [req.file.originalname || 'nominee.jpg', req.file.mimetype || 'image/jpeg', req.file.size || req.file.buffer.length, req.file.buffer, 'nominations']
+      );
+      photo_url = `/api/images/${imgRes.insertId}/file`;
+    }
     const insertedCodes = [];
     let primaryId = null;
 

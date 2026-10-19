@@ -7,45 +7,101 @@ const { slugify, uniqueSlug, withNomineeCode, hasColumn } = require('../utils/no
 const { invalidate } = require('../utils/cache');
 
 const fs = require('fs');
+const crypto = require('crypto');
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+const sponsorsUploadDir = path.join(uploadDir, 'sponsors');
+if (!fs.existsSync(sponsorsUploadDir)) {
+  fs.mkdirSync(sponsorsUploadDir, { recursive: true });
+}
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, 'admin-' + unique + path.extname(file.originalname));
-  },
-});
+function isValidImageBuffer(buffer) {
+  if (!buffer || buffer.length < 12) return false;
+  // JPEG: ff d8 ff
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return true;
+  // PNG: 89 50 4e 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return true;
+  // WebP: RIFF ... WEBP
+  if (
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) return true;
+  return false;
+}
+
+const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1 MB limit
+
+const memoryStorage = multer.memoryStorage();
 const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: memoryStorage,
+  limits: { fileSize: MAX_IMAGE_SIZE },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|gif|svg/i;
-    if (allowed.test(path.extname(file.originalname)) || (file.mimetype && file.mimetype.startsWith('image/'))) {
+    const mime = (file.mimetype || '').toLowerCase();
+    if (ALLOWED_IMAGE_MIMES.includes(mime)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error('Invalid image format. Only JPEG, PNG, and WebP images are allowed.'));
     }
   },
 });
 
 router.use(authenticate, authorizeAdmin);
 
-// POST /api/admin/upload — Dedicated admin image upload endpoint
-router.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No image file uploaded' });
-  }
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({
-    url: fileUrl,
-    filename: req.file.filename,
-    size: req.file.size,
-    message: 'Image uploaded successfully'
+// POST /api/admin/upload — Dedicated admin image upload endpoint storing in database
+router.post('/upload', (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          message: 'Image is required. Please upload an image smaller than or equal to 1 MB (1,048,576 bytes).',
+        });
+      }
+      return res.status(400).json({ message: err.message || 'Image upload error' });
+    }
+    next();
   });
+}, async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        message: 'Image is required. Please upload an image smaller than or equal to 1 MB.',
+      });
+    }
+
+    if (req.file.size > MAX_IMAGE_SIZE || req.file.buffer.length > MAX_IMAGE_SIZE) {
+      return res.status(400).json({
+        message: 'Image is required. Please upload an image smaller than or equal to 1 MB.',
+      });
+    }
+
+    const originalFilename = req.file.originalname || 'image.jpg';
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const fileSize = req.file.size || req.file.buffer.length;
+    const section = (req.body.section || 'admin').trim();
+
+    const [result] = await pool.query(
+      'INSERT INTO images (original_filename, mime_type, file_size, image_data, section) VALUES (?, ?, ?, ?, ?)',
+      [originalFilename, mimeType, fileSize, req.file.buffer, section]
+    );
+
+    const insertedId = result.insertId;
+    const fileUrl = `/api/images/${insertedId}/file`;
+
+    return res.status(201).json({
+      id: insertedId,
+      url: fileUrl,
+      filename: originalFilename,
+      size: fileSize,
+      mime_type: mimeType,
+      message: 'Image uploaded and stored in database successfully',
+    });
+  } catch (error) {
+    console.error('Error storing image in database:', error);
+    return res.status(500).json({ message: 'Failed to save image in database: ' + error.message });
+  }
 });
 
 router.get('/stats', async (req, res) => {
@@ -568,59 +624,539 @@ router.delete('/votes/:id', async (req, res) => {
   }
 });
 
+// =========================================================================
+// SPONSOR MANAGEMENT (Admin)
+// =========================================================================
+
+const ALLOWED_SPONSOR_TYPES = [
+  'Title Sponsor',
+  'Powered By Sponsor',
+  'Associate Sponsor',
+  'Gold Sponsor',
+  'Silver Sponsor',
+  'Media Partner',
+  'Event Partner',
+  'Technology Partner',
+  'Digital Partner',
+  'Bronze Sponsor',
+  'Official Partner',
+  'Co-Presenting Sponsor',
+];
+
+// GET /api/admin/sponsors — Retrieve saved sponsors with category details and sponsor type
 router.get('/sponsors', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM sponsors ORDER BY sort_order ASC');
-    res.json(rows);
+    const [rows] = await pool.query(`
+      SELECT 
+        s.id,
+        s.name,
+        s.sponsor_type,
+        COALESCE(
+          s.logo,
+          CASE WHEN s.image_id IS NOT NULL THEN CONCAT('/api/images/', s.image_id, '/file') ELSE NULL END,
+          s.logo_url
+        ) AS logo,
+        COALESCE(s.link, s.website_url) AS link,
+        COALESCE(s.category_id, cs.category_id) AS category_id,
+        c.name AS category_name,
+        s.created_at
+      FROM sponsors s
+      LEFT JOIN categories c ON c.id = COALESCE(s.category_id, (
+        SELECT cs2.category_id 
+        FROM category_sponsors cs2 
+        WHERE cs2.sponsor_id = s.id 
+        ORDER BY cs2.id DESC 
+        LIMIT 1
+      ))
+      LEFT JOIN category_sponsors cs ON cs.sponsor_id = s.id AND cs.category_id = c.id
+      ORDER BY s.id DESC
+    `);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      sponsor_type: r.sponsor_type || null,
+      logo: r.logo || null,
+      link: r.link || null,
+      category_id: r.category_id || null,
+      category_name: r.category_name || null,
+    }));
+
+    res.json({
+      success: true,
+      data,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-router.post('/sponsors', async (req, res) => {
-  try {
-    const { name, tier, logo_url, website_url, tagline, sort_order } = req.body;
-    if (!name) {
-      return res.status(400).json({ message: 'Sponsor name is required' });
+// Helper for sponsor multipart upload with multer error handling
+const sponsorUploadMiddleware = upload.fields([
+  { name: 'logo', maxCount: 1 },
+  { name: 'image', maxCount: 1 },
+]);
+
+const handleSponsorUpload = (req, res, next) => {
+  const contentType = (req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('multipart/form-data')) {
+    return next();
+  }
+
+  sponsorUploadMiddleware(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'Image is too large. Maximum permitted size is 1 MB (1,048,576 bytes).',
+        });
+      }
+      return res.status(400).json({ success: false, message: err.message || 'Image upload error' });
     }
-    const [result] = await pool.query(
-      'INSERT INTO sponsors (name, tier, logo_url, website_url, tagline, is_active, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?)',
-      [name, tier || 'gold', logo_url || null, website_url || null, tagline || null, sort_order || 0]
-    );
-    res.status(201).json({ message: 'Sponsor created', id: result.insertId });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+    req.file = (req.files && (req.files.logo?.[0] || req.files.image?.[0])) || null;
+    next();
+  });
+};
 
-router.put('/sponsors/:id', async (req, res) => {
+// Reusable sponsor update handler (supports both POST and PUT methods)
+const handleUpdateSponsor = async (id, req, res) => {
   try {
-    const { name, tier, logo_url, website_url, tagline, is_active, sort_order } = req.body;
-    await pool.query(
-      'UPDATE sponsors SET name = COALESCE(?, name), tier = COALESCE(?, tier), logo_url = COALESCE(?, logo_url), website_url = COALESCE(?, website_url), tagline = COALESCE(?, tagline), is_active = COALESCE(?, is_active), sort_order = COALESCE(?, sort_order) WHERE id = ?',
-      [name, tier, logo_url, website_url, tagline, is_active === undefined ? null : is_active ? 1 : 0, sort_order, req.params.id]
+    const parsedId = parseInt(id, 10);
+    if (!parsedId || isNaN(parsedId) || parsedId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid sponsor ID' });
+    }
+
+    // Check if sponsor exists
+    const [existingSponsors] = await pool.query('SELECT * FROM sponsors WHERE id = ? LIMIT 1', [parsedId]);
+    if (existingSponsors.length === 0) {
+      return res.status(404).json({ success: false, message: 'Sponsor not found' });
+    }
+    const currentSponsor = existingSponsors[0];
+
+    let { name, sponsor_type, tier, image_id, logo, logo_url, link, website_url, category_id, tagline, is_active, sort_order } = req.body;
+
+    if (name !== undefined) {
+      name = typeof name === 'string' ? name.trim() : '';
+      if (!name) {
+        return res.status(400).json({ success: false, message: 'Sponsor name cannot be empty' });
+      }
+    }
+
+    if (sponsor_type !== undefined) {
+      const trimmedType = typeof sponsor_type === 'string' ? sponsor_type.trim() : '';
+      if (!trimmedType) {
+        return res.status(400).json({ success: false, message: 'Sponsor type cannot be empty' });
+      }
+      if (!ALLOWED_SPONSOR_TYPES.includes(trimmedType)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid sponsor type. Must be one of: ${ALLOWED_SPONSOR_TYPES.join(', ')}`,
+        });
+      }
+      // Check whether another sponsor already uses this type
+      const [existing] = await pool.query(
+        'SELECT id FROM sponsors WHERE sponsor_type = ? AND id != ? LIMIT 1',
+        [trimmedType, parsedId]
+      );
+      if (existing.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'This sponsor type has already been assigned to another sponsor.',
+        });
+      }
+      sponsor_type = trimmedType;
+    }
+
+    // Handle optional link
+    const rawLink = link !== undefined ? link : website_url;
+    let finalLink = undefined;
+    if (rawLink !== undefined) {
+      const trimmedLink = typeof rawLink === 'string' ? rawLink.trim() : '';
+      if (trimmedLink) {
+        try {
+          const parsed = new URL(trimmedLink);
+          if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return res.status(400).json({ success: false, message: 'Invalid URL. Only HTTP and HTTPS links are allowed.' });
+          }
+        } catch (err) {
+          return res.status(400).json({ success: false, message: 'Please enter a valid website URL (e.g. https://example.com)' });
+        }
+        finalLink = trimmedLink;
+      } else {
+        finalLink = null;
+      }
+    }
+
+    // Handle new uploaded logo file if provided
+    let newLogoPath = null;
+    let newImageId = null;
+    if (req.file && req.file.buffer) {
+      if (req.file.size > MAX_IMAGE_SIZE || req.file.buffer.length > MAX_IMAGE_SIZE) {
+        return res.status(400).json({
+          success: false,
+          message: 'Image exceeds maximum allowed size of 1 MB (1,048,576 bytes).',
+        });
+      }
+
+      if (!isValidImageBuffer(req.file.buffer)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid image format. Only genuine JPG, JPEG, PNG, and WebP images are allowed.',
+        });
+      }
+
+      const rawExt = path.extname(req.file.originalname || '').toLowerCase();
+      const ext = ['.jpg', '.jpeg', '.png', '.webp'].includes(rawExt) ? rawExt : '.png';
+      const filename = `sponsor-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+      newLogoPath = `/uploads/sponsors/${filename}`;
+      const absoluteFilePath = path.join(sponsorsUploadDir, filename);
+
+      await fs.promises.writeFile(absoluteFilePath, req.file.buffer);
+
+      try {
+        const [imgRes] = await pool.query(
+          'INSERT INTO images (original_filename, mime_type, file_size, image_data, section, entity_type, entity_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [req.file.originalname || filename, req.file.mimetype || 'image/png', req.file.size || req.file.buffer.length, req.file.buffer, 'sponsors', 'sponsor', parsedId]
+        );
+        newImageId = imgRes.insertId;
+      } catch (imgErr) {
+        console.error('Non-critical: Failed to save sponsor image to images table:', imgErr.message);
+      }
+
+      // If old logo exists and is not shared, safely unlink it
+      const oldLogo = currentSponsor.logo || currentSponsor.logo_url;
+      if (oldLogo && typeof oldLogo === 'string' && oldLogo.startsWith('/uploads/sponsors/')) {
+        const [shared] = await pool.query(
+          'SELECT id FROM sponsors WHERE (logo = ? OR logo_url = ?) AND id != ? LIMIT 1',
+          [oldLogo, oldLogo, parsedId]
+        );
+        if (shared.length === 0) {
+          const oldFilename = path.basename(oldLogo);
+          const oldDiskPath = path.join(sponsorsUploadDir, oldFilename);
+          const resolvedOld = path.resolve(oldDiskPath);
+          const resolvedDir = path.resolve(sponsorsUploadDir);
+          if (resolvedOld.startsWith(resolvedDir) && fs.existsSync(resolvedOld)) {
+            try {
+              await fs.promises.unlink(resolvedOld);
+            } catch (unlinkErr) {
+              console.error('Non-critical: Failed to unlink old logo:', unlinkErr.message);
+            }
+          }
+        }
+      }
+    }
+
+    const finalLogo = newLogoPath || logo || logo_url;
+    const finalImageId = newImageId || image_id;
+
+    try {
+      await pool.query(
+        `UPDATE sponsors SET
+           name = COALESCE(?, name),
+           sponsor_type = COALESCE(?, sponsor_type),
+           tier = COALESCE(?, tier),
+           image_id = COALESCE(?, image_id),
+           logo = COALESCE(?, logo),
+           logo_url = COALESCE(?, logo_url),
+           link = CASE WHEN ? = 1 THEN ? ELSE link END,
+           website_url = CASE WHEN ? = 1 THEN ? ELSE website_url END,
+           category_id = COALESCE(?, category_id),
+           tagline = COALESCE(?, tagline),
+           is_active = COALESCE(?, is_active),
+           sort_order = COALESCE(?, sort_order)
+         WHERE id = ?`,
+        [
+          name || null,
+          sponsor_type || null,
+          tier || null,
+          finalImageId || null,
+          finalLogo || null,
+          finalLogo || null,
+          rawLink !== undefined ? 1 : 0,
+          finalLink !== undefined ? finalLink : null,
+          rawLink !== undefined ? 1 : 0,
+          finalLink !== undefined ? finalLink : null,
+          category_id ? parseInt(category_id, 10) : null,
+          tagline || null,
+          is_active === undefined ? null : (is_active ? 1 : 0),
+          sort_order !== undefined ? sort_order : null,
+          parsedId,
+        ]
+      );
+    } catch (updateErr) {
+      if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
+        return res.status(409).json({
+          success: false,
+          message: 'This sponsor type has already been assigned to another sponsor.',
+        });
+      }
+      throw updateErr;
+    }
+
+    invalidate('sponsors:');
+    invalidate('categories:');
+
+    // Retrieve updated sponsor
+    const [updatedRows] = await pool.query(
+      `SELECT id, name, sponsor_type,
+              COALESCE(logo, logo_url) AS logo,
+              COALESCE(link, website_url) AS link
+       FROM sponsors WHERE id = ?`,
+      [parsedId]
     );
-    res.json({ message: 'Sponsor updated' });
+
+    return res.json({
+      success: true,
+      message: 'Sponsor updated successfully',
+      data: updatedRows[0] || null,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /api/admin/sponsors — Create a sponsor or Update if id/sponsor_id is passed
+router.post('/sponsors', handleSponsorUpload, async (req, res) => {
+  try {
+    // If an id / sponsor_id is passed in body, route to update logic (supports POST for updates)
+    const updateId = req.body.id || req.body.sponsor_id;
+    if (updateId) {
+      return await handleUpdateSponsor(updateId, req, res);
+    }
+
+    const rawName = req.body.name;
+    const name = typeof rawName === 'string' ? rawName.trim() : '';
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'Sponsor name is required' });
+    }
+
+    // Category is optional
+    const rawCatId = req.body.category_id;
+    let categoryId = null;
+    let categoryName = null;
+    if (rawCatId !== undefined && rawCatId !== null && rawCatId !== '') {
+      const parsedCatId = parseInt(rawCatId, 10);
+      if (!isNaN(parsedCatId) && parsedCatId > 0) {
+        const [catRows] = await pool.query('SELECT id, name FROM categories WHERE id = ?', [parsedCatId]);
+        if (catRows.length > 0) {
+          categoryId = parsedCatId;
+          categoryName = catRows[0].name;
+        } else {
+          return res.status(400).json({ success: false, message: 'Selected category does not exist' });
+        }
+      }
+    }
+
+    // Validate sponsor_type
+    const rawSponsorType = req.body.sponsor_type;
+    const sponsorType = typeof rawSponsorType === 'string' ? rawSponsorType.trim() : '';
+    if (!sponsorType) {
+      return res.status(400).json({ success: false, message: 'Sponsor type is required' });
+    }
+    if (!ALLOWED_SPONSOR_TYPES.includes(sponsorType)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid sponsor type. Must be one of: ${ALLOWED_SPONSOR_TYPES.join(', ')}`,
+      });
+    }
+
+    // Check whether the selected sponsor_type is already assigned to another sponsor
+    const [existingTypeRows] = await pool.query(
+      'SELECT id, name FROM sponsors WHERE sponsor_type = ? LIMIT 1',
+      [sponsorType]
+    );
+    if (existingTypeRows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'This sponsor type has already been assigned to another sponsor.',
+      });
+    }
+
+    // Validate optional link
+    const rawLink = req.body.link !== undefined ? req.body.link : req.body.website_url;
+    let link = typeof rawLink === 'string' ? rawLink.trim() : '';
+    if (link) {
+      try {
+        const parsed = new URL(link);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return res.status(400).json({ success: false, message: 'Invalid URL. Only HTTP and HTTPS links are allowed.' });
+        }
+      } catch (err) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid website URL (e.g. https://example.com)' });
+      }
+    } else {
+      link = null;
+    }
+
+    // Validate logo file
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'Sponsor logo is required' });
+    }
+
+    if (req.file.size > MAX_IMAGE_SIZE || req.file.buffer.length > MAX_IMAGE_SIZE) {
+      return res.status(400).json({
+        success: false,
+        message: 'Image exceeds maximum allowed size of 1 MB (1,048,576 bytes).',
+      });
+    }
+
+    if (!isValidImageBuffer(req.file.buffer)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid image format. Only genuine JPG, JPEG, PNG, and WebP images are allowed.',
+      });
+    }
+
+    // Save logo to managed uploads directory
+    const rawExt = path.extname(req.file.originalname || '').toLowerCase();
+    const ext = ['.jpg', '.jpeg', '.png', '.webp'].includes(rawExt) ? rawExt : '.png';
+    const filename = `sponsor-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+    const relativeLogoPath = `/uploads/sponsors/${filename}`;
+    const absoluteFilePath = path.join(sponsorsUploadDir, filename);
+
+    await fs.promises.writeFile(absoluteFilePath, req.file.buffer);
+
+    // Also store image record in images table for database storage parity
+    let imageId = null;
+    try {
+      const [imgRes] = await pool.query(
+        'INSERT INTO images (original_filename, mime_type, file_size, image_data, section, entity_type) VALUES (?, ?, ?, ?, ?, ?)',
+        [req.file.originalname || filename, req.file.mimetype || 'image/png', req.file.size || req.file.buffer.length, req.file.buffer, 'sponsors', 'sponsor']
+      );
+      imageId = imgRes.insertId;
+    } catch (imgErr) {
+      console.error('Non-critical: Failed to save sponsor image to images table:', imgErr.message);
+    }
+
+    // Insert sponsor record (with concurrency protection on unique key)
+    let newSponsorId;
+    try {
+      const [result] = await pool.query(
+        `INSERT INTO sponsors (name, sponsor_type, logo, logo_url, link, website_url, category_id, image_id, tier, is_active, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'category_partner', 1, 0)`,
+        [name, sponsorType, relativeLogoPath, relativeLogoPath, link, link, categoryId, imageId]
+      );
+      newSponsorId = result.insertId;
+    } catch (insertErr) {
+      if (insertErr.code === 'ER_DUP_ENTRY' || insertErr.errno === 1062) {
+        return res.status(409).json({
+          success: false,
+          message: 'This sponsor type has already been assigned to another sponsor.',
+        });
+      }
+      throw insertErr;
+    }
+
+    if (imageId) {
+      await pool.query('UPDATE images SET entity_id = ? WHERE id = ?', [newSponsorId, imageId]).catch(() => {});
+    }
+
+    // Link in category_sponsors junction table if category is specified
+    if (categoryId) {
+      await pool.query(
+        `INSERT INTO category_sponsors (category_id, sponsor_id, role, sort_order)
+         VALUES (?, ?, 'Category Partner', 0)
+         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
+        [categoryId, newSponsorId]
+      ).catch(() => {});
+    }
+
+    invalidate('sponsors:');
+    invalidate('categories:');
+
+    const createdData = {
+      id: newSponsorId,
+      name,
+      sponsor_type: sponsorType,
+      logo: relativeLogoPath,
+      link,
+      category_id: categoryId,
+      category_name: categoryName,
+    };
+
+    return res.status(201).json({
+      success: true,
+      message: 'Sponsor created successfully',
+      id: newSponsorId,
+      data: createdData,
+    });
+  } catch (error) {
+    console.error('Error creating sponsor:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
+// POST /api/admin/sponsors/:id — Update sponsor via POST
+router.post('/sponsors/:id', handleSponsorUpload, async (req, res) => {
+  return await handleUpdateSponsor(req.params.id, req, res);
+});
+
+// PUT /api/admin/sponsors/:id — Update sponsor via PUT
+router.put('/sponsors/:id', handleSponsorUpload, async (req, res) => {
+  return await handleUpdateSponsor(req.params.id, req, res);
+});
+
+// DELETE /api/admin/sponsors/:id — Permanently delete a sponsor and safely remove logo file
 router.delete('/sponsors/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM sponsors WHERE id = ?', [req.params.id]);
-    res.json({ message: 'Sponsor deleted' });
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id) || id <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid sponsor ID' });
+    }
+
+    const [rows] = await pool.query('SELECT id, name, logo, logo_url, image_id FROM sponsors WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Sponsor not found' });
+    }
+    const sponsor = rows[0];
+
+    // Delete sponsor record from database
+    await pool.query('DELETE FROM sponsors WHERE id = ?', [id]);
+
+    // Clean up category_sponsors junction table
+    await pool.query('DELETE FROM category_sponsors WHERE sponsor_id = ?', [id]).catch(() => {});
+
+    // Clean up database image entity if associated
+    if (sponsor.image_id) {
+      await pool.query("DELETE FROM images WHERE id = ? AND entity_type = 'sponsor'", [sponsor.image_id]).catch(() => {});
+    }
+
+    // Safely remove managed local file if not shared
+    const logoPath = sponsor.logo || sponsor.logo_url;
+    if (logoPath && typeof logoPath === 'string' && (logoPath.startsWith('/uploads/') || logoPath.startsWith('uploads/'))) {
+      const [shared] = await pool.query(
+        'SELECT id FROM sponsors WHERE (logo = ? OR logo_url = ?) AND id != ? LIMIT 1',
+        [logoPath, logoPath, id]
+      );
+      if (shared.length === 0) {
+        const rootUploadDir = path.resolve(__dirname, '..', 'uploads');
+        const rel = logoPath.replace(/^\/?uploads\/?/, '');
+        const targetPath = path.resolve(rootUploadDir, rel);
+        // Security check: ensure path is strictly inside rootUploadDir
+        if (targetPath.startsWith(rootUploadDir) && fs.existsSync(targetPath)) {
+          await fs.promises.unlink(targetPath).catch(() => {});
+        }
+      }
+    }
+
+    invalidate('sponsors:');
+    invalidate('categories:');
+    return res.status(200).json({ success: true, message: 'Sponsor deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
+
+
 
 // ========== CATEGORY SPONSORS & POSTER TEMPLATES ADMIN ==========
 router.get('/categories/:id/sponsors', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order, cs.created_at AS associated_at,
-              s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
+              s.id, s.id AS sponsor_id, s.name, s.tier,
+              COALESCE(CASE WHEN s.image_id IS NOT NULL THEN CONCAT('/api/images/', s.image_id, '/file') ELSE NULL END, s.logo_url) AS logo_url,
+              s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
          FROM category_sponsors cs
          JOIN sponsors s ON cs.sponsor_id = s.id
         WHERE cs.category_id = ?
@@ -712,7 +1248,9 @@ router.get('/categories/:id/poster-preview', async (req, res) => {
 
     const [categorySponsors] = await pool.query(
       `SELECT cs.id AS association_id, cs.role, cs.sort_order AS display_order,
-              s.id, s.id AS sponsor_id, s.name, s.tier, s.logo_url, s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
+              s.id, s.id AS sponsor_id, s.name, s.tier,
+              COALESCE(CASE WHEN s.image_id IS NOT NULL THEN CONCAT('/api/images/', s.image_id, '/file') ELSE NULL END, s.logo_url) AS logo_url,
+              s.website_url, s.tagline, COALESCE(s.is_active, 1) AS is_active
          FROM category_sponsors cs
          JOIN sponsors s ON cs.sponsor_id = s.id
         WHERE cs.category_id = ?
@@ -720,7 +1258,10 @@ router.get('/categories/:id/poster-preview', async (req, res) => {
       [category.id]
     );
 
-    let displaySponsors = categorySponsors;
+    // Master switch enforcement: inactive sponsors (is_active = 0) are excluded from the poster preview!
+    const activeCategorySponsors = categorySponsors.filter((s) => Number(s.is_active) === 1);
+
+    let displaySponsors = activeCategorySponsors;
     if (!displaySponsors.length) {
       const [globalSpons] = await pool.query(
         `SELECT NULL AS association_id,
@@ -731,7 +1272,9 @@ router.get('/categories/:id/poster-preview', async (req, res) => {
                   ELSE 'Official Partner'
                 END AS role,
                 sort_order AS display_order,
-                id, id AS sponsor_id, name, tier, logo_url, website_url, tagline, is_active
+                id, id AS sponsor_id, name, tier,
+                COALESCE(CASE WHEN image_id IS NOT NULL THEN CONCAT('/api/images/', image_id, '/file') ELSE NULL END, logo_url) AS logo_url,
+                website_url, tagline, is_active
            FROM sponsors
           WHERE is_active = 1
           ORDER BY CASE tier
