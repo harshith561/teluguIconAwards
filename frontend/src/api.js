@@ -1,11 +1,38 @@
 const PROD_API_URL = 'https://teluguiconawards.in/api';
 
-const rawEnv = (import.meta.env.VITE_API_URL || '').trim();
-export const API_BASE = rawEnv
-  ? (rawEnv.replace(/\/+$/, '').endsWith('/api') ? rawEnv.replace(/\/+$/, '') : `${rawEnv.replace(/\/+$/, '')}/api`)
-  : (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('vercel.app')
-      ? '/api'
-      : (import.meta.env.DEV ? '/api' : PROD_API_URL));
+export function resolveApiBase() {
+  const isBrowser = typeof window !== 'undefined';
+  const hostname = isBrowser ? (window.location.hostname || '') : '';
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+
+  const rawEnv = (import.meta.env.VITE_API_URL || '').trim();
+
+  // 1. If running on local computer in browser (or Vite DEV mode)
+  if (isLocalhost || import.meta.env.DEV) {
+    if (rawEnv && rawEnv.includes('localhost')) {
+      const clean = rawEnv.replace(/\/+$/, '');
+      return clean.endsWith('/api') ? clean : `${clean}/api`;
+    }
+    return '/api';
+  }
+
+  // 2. If running on the live website (NOT localhost):
+  // Even if .env has VITE_API_URL=http://localhost:3001, NEVER use localhost on a live visitor's browser!
+  if (rawEnv && !rawEnv.includes('localhost')) {
+    const clean = rawEnv.replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+
+  // If on the live domain teluguiconawards.in
+  if (isBrowser && hostname.includes('teluguiconawards.in')) {
+    return '/api';
+  }
+
+  // If on Vercel or any other live preview/production domain
+  return PROD_API_URL;
+}
+
+export const API_BASE = resolveApiBase();
 
 export const getImageUrl = (id) => {
   if (!id) return '';
