@@ -28,10 +28,10 @@ export default function Footer() {
 
             <div className="p-3.5 rounded-xl bg-[#160505] border border-[rgba(216,181,107,0.25)] text-xs text-[#cdbda9] space-y-1">
               <div className="text-[#f1d99a] font-bold">📅 16 November 2026 · Shilpakala Vedika, Hyderabad</div>
-              <div className="text-[11px] text-[#a99888]">
+              {/* <div className="text-[11px] text-[#a99888]">
                 Session 1: 10:00 AM – 2:00 PM (Complimentary Lunch)<br />
                 Session 2: 3:00 PM – 7:00 PM (Complimentary Dinner)
-              </div>
+              </div> */}
             </div>
           </div>
 

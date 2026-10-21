@@ -1098,48 +1098,50 @@ export const drawDynamicSponsorsSection = (
   }
 
   if (count === 5) {
-    // 5 Sponsors: 2 balanced rows (Row 1: 3 logos, Row 2: 2 logos centered)
-    const cardW = 165 * scale;
-    const cardH = 44 * scale;
-    const gapX = 14 * scale;
-    const gapY = 8 * scale;
-
-    // Row 1: 3 items
-    const row1W = 3 * cardW + 2 * gapX;
-    const row1StartX = cx - row1W / 2;
-    for (let i = 0; i < 3; i++) {
-      drawSponsorCard(ctx, validSponsors[i], row1StartX + i * (cardW + gapX), gridStartY, cardW, cardH, scale);
+    // 5 Sponsors: 1 balanced, prominent row of 5 logos
+    const cardW = 102 * scale;
+    const cardH = 58 * scale;
+    const gapX = 12 * scale;
+    const rowW = 5 * cardW + 4 * gapX;
+    const startX = cx - rowW / 2;
+    for (let i = 0; i < 5; i++) {
+      drawSponsorCard(ctx, validSponsors[i], startX + i * (cardW + gapX), gridStartY, cardW, cardH, scale);
     }
-
-    // Row 2: 2 items centered
-    const row2Y = gridStartY + cardH + gapY;
-    const row2W = 2 * cardW + gapX;
-    const row2StartX = cx - row2W / 2;
-    for (let i = 0; i < 2; i++) {
-      drawSponsorCard(ctx, validSponsors[3 + i], row2StartX + i * (cardW + gapX), row2Y, cardW, cardH, scale);
-    }
-    return row2Y + cardH;
+    return gridStartY + cardH;
   }
 
-  if (count >= 6 && count <= 10) {
-    // 6 to 10 Sponsors: 2 rows with centered final row
-    const cols = count <= 6 ? 3 : (count <= 8 ? 4 : 5);
-    const cardH = (count <= 6 ? 44 : 38) * scale;
-    const gapX = (count <= 6 ? 14 : 10) * scale;
+  if (count === 6) {
+    // 6 Sponsors: 1 balanced row of 6 logos
+    const cardW = 86 * scale;
+    const cardH = 56 * scale;
+    const gapX = 10 * scale;
+    const rowW = 6 * cardW + 5 * gapX;
+    const startX = cx - rowW / 2;
+    for (let i = 0; i < 6; i++) {
+      drawSponsorCard(ctx, validSponsors[i], startX + i * (cardW + gapX), gridStartY, cardW, cardH, scale);
+    }
+    return gridStartY + cardH;
+  }
+
+  if (count >= 7 && count <= 12) {
+    // 7 to 12 Sponsors: Up to 6 in row 1, up to 6 in row 2 (6 and 6 layout)
+    const cols = 6;
+    const cardH = 50 * scale;
+    const gapX = 10 * scale;
     const gapY = 8 * scale;
     const cardW = Math.floor((maxWidth - (cols - 1) * gapX) / cols);
     const numRows = Math.ceil(count / cols);
 
     for (let r = 0; r < numRows; r++) {
-      const startIndex = r * cols;
-      const endIndex = Math.min(count, startIndex + cols);
-      const itemsInRow = endIndex - startIndex;
+      const startIdx = r * cols;
+      const endIdx = Math.min(count, startIdx + cols);
+      const itemsInRow = endIdx - startIdx;
       const rowW = itemsInRow * cardW + (itemsInRow - 1) * gapX;
       const rowStartX = cx - rowW / 2;
       const rowY = gridStartY + r * (cardH + gapY);
 
       for (let c = 0; c < itemsInRow; c++) {
-        const sp = validSponsors[startIndex + c];
+        const sp = validSponsors[startIdx + c];
         const cardX = rowStartX + c * (cardW + gapX);
         drawSponsorCard(ctx, sp, cardX, rowY, cardW, cardH, scale);
       }
@@ -1147,14 +1149,13 @@ export const drawDynamicSponsorsSection = (
     return gridStartY + numRows * cardH + (numRows - 1) * gapY;
   }
 
-  // More than 10 Sponsors: Dynamic grid based on actual logo count
-  // Calculate columns, rows and card heights dynamically so ALL logos fit legibly without omission
-  const cols = count <= 16 ? 4 : (count <= 20 ? 5 : 6);
+  // More than 12 Sponsors: Dynamic 6-column grid
+  const cols = 6;
   const numRows = Math.ceil(count / cols);
-  const gapX = (cols >= 5 ? 8 : 10) * scale;
+  const gapX = 8 * scale;
   const gapY = 6 * scale;
   const cardW = Math.floor((maxWidth - (cols - 1) * gapX) / cols);
-  const cardH = Math.max(26 * scale, Math.min(36 * scale, Math.floor(150 * scale / numRows)));
+  const cardH = Math.max(34 * scale, Math.min(48 * scale, Math.floor(160 * scale / numRows)));
 
   for (let r = 0; r < numRows; r++) {
     const startIndex = r * cols;

@@ -106,9 +106,9 @@ export const NomineeHtmlPoster = forwardRef(({
           alignItems: 'center',
           justifyContent: 'flex-start',
           width: '100%',
-          maxWidth: '540px',
+          maxWidth: '600px',
           margin: '0 auto',
-          padding: '0 20px',
+          padding: '0 10px',
           boxSizing: 'border-box',
           position: 'relative',
           zIndex: 5,
@@ -214,54 +214,72 @@ export const NomineeHtmlPoster = forwardRef(({
           </div>
         </div>
 
-        {/* 4. Dynamic Sponsors Grid (Adapts to sponsor count) */}
+        {/* 4. Dynamic Sponsors Grid (Adapts to sponsor count: up to 6 per row/col, flexible wrap, large & visible) */}
         {validSponsors.length > 0 && (
-          <div style={{ marginTop: isStory ? '22px' : '16px', width: '100%', maxWidth: '520px', textAlign: 'center' }}>
+          <div style={{ marginTop: isStory ? '24px' : '18px', width: '100%', maxWidth: '600px', textAlign: 'center' }}>
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '12px',
-                marginBottom: '8px',
+                marginBottom: '10px',
               }}
             >
-              <div style={{ height: '1px', width: '45px', background: 'rgba(212, 175, 55, 0.5)' }} />
+              <div style={{ height: '1px', width: '48px', background: 'rgba(212, 175, 55, 0.6)' }} />
               <span
                 style={{
                   color: '#D4AF37',
-                  fontSize: '13px',
-                  fontWeight: 700,
+                  fontSize: '14px',
+                  fontWeight: 800,
                   letterSpacing: '2.5px',
                   fontFamily: "'Plus Jakarta Sans', Arial, sans-serif",
                 }}
               >
                 OUR PROUD SPONSORS
               </span>
-              <div style={{ height: '1px', width: '45px', background: 'rgba(212, 175, 55, 0.5)' }} />
+              <div style={{ height: '1px', width: '48px', background: 'rgba(212, 175, 55, 0.6)' }} />
             </div>
 
             <div
               style={{
                 display: 'flex',
                 flexWrap: 'wrap',
-                gap: '12px 18px',
+                gap: validSponsors.length > 6 ? '12px 10px' : '14px 14px',
                 justifyContent: 'center',
                 alignItems: 'center',
-                padding: '2px 0',
+                padding: '4px 0',
+                width: '100%',
               }}
             >
               {validSponsors.map((sp) => {
                 const sUrl = sp.logo_url || sp.logo || (sp.image_id ? `/api/images/${sp.image_id}/file` : '');
+                const count = validSponsors.length;
+                
+                // Prominent sizing so logos are clearly visible, bold, and prestigious:
+                // <=2 sponsors: large hero logos (78px height / 240px maxWidth)
+                // 3-4 sponsors: prominent logos (70px height / 170px maxWidth)
+                // 5-6 sponsors: 1 balanced row of up to 6 (64px height / 125px maxWidth)
+                // >6 sponsors: 2 rows of up to 6 (6 in column/row, 6 in another, 54px height / 96px maxWidth)
+                const cardHeight = isStory
+                  ? (count <= 2 ? '86px' : count <= 4 ? '76px' : count <= 6 ? '68px' : '58px')
+                  : (count <= 2 ? '78px' : count <= 4 ? '70px' : count <= 6 ? '64px' : '54px');
+                const cardMaxWidth = count <= 2 ? '240px' : (count <= 4 ? '170px' : (count <= 6 ? '125px' : '96px'));
+                const cardMinWidth = count <= 2 ? '140px' : (count <= 4 ? '105px' : (count <= 6 ? '85px' : '72px'));
+
                 return (
                   <div
                     key={sp.id || sp.name}
                     style={{
-                      height: validSponsors.length <= 2 ? '44px' : '38px',
-                      maxWidth: validSponsors.length <= 2 ? '180px' : (validSponsors.length <= 4 ? '130px' : '100px'),
+                      height: cardHeight,
+                      maxWidth: cardMaxWidth,
+                      minWidth: cardMinWidth,
+                      flex: count > 6 ? '0 1 calc(16.666% - 10px)' : '0 1 auto',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      padding: '2px 4px',
+                      boxSizing: 'border-box',
                     }}
                   >
                     <img
@@ -271,8 +289,10 @@ export const NomineeHtmlPoster = forwardRef(({
                       style={{
                         maxHeight: '100%',
                         maxWidth: '100%',
+                        width: 'auto',
+                        height: 'auto',
                         objectFit: 'contain',
-                        filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.7))',
+                        filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.85))',
                       }}
                     />
                   </div>
@@ -297,7 +317,7 @@ export const NomineeHtmlPoster = forwardRef(({
           <span
             style={{
               color: '#D4AF37',
-              fontSize: isStory ? '21px' : '19px',
+              fontSize: isStory ? '25px' : '20px',
               fontWeight: 800,
               letterSpacing: '2.5px',
               textShadow: '0 2px 10px rgba(0,0,0,0.9), 0 0 20px rgba(212, 175, 55, 0.45)',
@@ -308,7 +328,7 @@ export const NomineeHtmlPoster = forwardRef(({
           <span
             style={{
               color: 'rgba(255, 255, 255, 0.9)',
-              fontSize: isStory ? '13px' : '12px',
+              fontSize: isStory ? '15px' : '14px',
               fontWeight: 600,
               marginTop: '4px',
               marginBottom: '10px',
