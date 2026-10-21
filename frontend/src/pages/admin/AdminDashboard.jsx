@@ -690,8 +690,12 @@ function NominationsTab() {
                   <tr key={n.id} className="border-t border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-4">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-ink-700 to-burgundy-900 flex items-center justify-center overflow-hidden shrink-0">
-                          {n.photo_url ? <img src={n.photo_url} className="w-full h-full object-cover" alt="" /> : <span className="text-xs">🏆</span>}
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-ink-700 to-burgundy-900 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
+                          {n.photo_url ? (
+                            <img src={getAssetUrl(n.photo_url)} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <span className="text-xs">🏆</span>
+                          )}
                         </div>
                         <div>
                           <div className="font-medium text-white">{n.creator_name || n.full_name}</div>

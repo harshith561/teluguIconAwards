@@ -9,6 +9,10 @@
       "destination": "https://teluguiconawards.in/uploads/:path*"
     },
     {
+      "source": "/images/:path*",
+      "destination": "https://teluguiconawards.in/api/images/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

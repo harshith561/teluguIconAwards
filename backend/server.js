@@ -207,6 +207,7 @@ app.use('/api/votes', voteRoutes);
 app.use('/api/otp', otpRoutes);
 app.use('/api/sponsors', sponsorRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/images', imageRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin', adminRoutes);

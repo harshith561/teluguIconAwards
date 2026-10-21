@@ -65,6 +65,9 @@ router.post('/', upload.single('photo'), async (req, res) => {
     if (!phone || !/^[0-9+\-\s]{10,15}$/.test(String(phone).trim())) {
       return res.status(400).json({ message: 'Please provide a valid mobile number' });
     }
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'Profile photograph is mandatory. Please upload your photo.' });
+    }
 
     // Verify all selected categories are self_nomination
     const placeholders = catIds.map(() => '?').join(',');
@@ -83,16 +86,24 @@ router.post('/', upload.single('photo'), async (req, res) => {
       return res.status(400).json({ message: 'Nominations are currently closed' });
     }
 
-    let photo_url = null;
-    if (req.file && req.file.buffer) {
-      if (req.file.size > MAX_IMAGE_SIZE || req.file.buffer.length > MAX_IMAGE_SIZE) {
-        return res.status(400).json({ message: 'Image must be smaller than or equal to 1 MB' });
-      }
-      const [imgRes] = await pool.query(
-        'INSERT INTO images (original_filename, mime_type, file_size, image_data, section) VALUES (?, ?, ?, ?, ?)',
-        [req.file.originalname || 'nominee.jpg', req.file.mimetype || 'image/jpeg', req.file.size || req.file.buffer.length, req.file.buffer, 'nominations']
-      );
-      photo_url = `/api/images/${imgRes.insertId}/file`;
+    if (req.file.size > MAX_IMAGE_SIZE || req.file.buffer.length > MAX_IMAGE_SIZE) {
+      return res.status(400).json({ message: 'Profile photograph must be smaller than or equal to 1 MB' });
+    }
+
+    const [imgRes] = await pool.query(
+      'INSERT INTO images (original_filename, mime_type, file_size, image_data, section) VALUES (?, ?, ?, ?, ?)',
+      [req.file.originalname || 'nominee.jpg', req.file.mimetype || 'image/jpeg', req.file.size || req.file.buffer.length, req.file.buffer, 'nominations']
+    );
+    const imgId = imgRes.insertId;
+    const photo_url = `/api/images/${imgId}/file`;
+
+    // Also persist to uploads directory as disk fallback
+    try {
+      const ext = path.extname(req.file.originalname) || '.jpg';
+      const diskFile = `nomination-${Date.now()}-${imgId}${ext}`;
+      fs.writeFileSync(path.join(uploadDir, diskFile), req.file.buffer);
+    } catch (err) {
+      console.warn('Upload fallback disk write error:', err.message);
     }
     const insertedCodes = [];
     let primaryId = null;

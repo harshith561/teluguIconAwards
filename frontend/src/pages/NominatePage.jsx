@@ -31,6 +31,8 @@ export default function NominatePage() {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [catSearch, setCatSearch] = useState('');
   const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState(BASE_FORM);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
@@ -39,12 +41,50 @@ export default function NominatePage() {
   const [nominationCodes, setNominationCodes] = useState([]);
 
   useEffect(() => {
+    return () => {
+      if (photoPreview && photoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
+
+  useEffect(() => {
     api.get('/categories').then((data) => {
       if (Array.isArray(data)) {
         setCategories(data.filter((c) => c.type === 'self_nomination'));
       }
     }).catch(() => {});
   }, []);
+
+  const handlePhotoChange = (e) => {
+    setError(null);
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (JPEG, PNG, WebP).');
+      return;
+    }
+    if (file.size > 1 * 1024 * 1024) {
+      setError(`Profile photograph must be less than 1 MB (selected file is ${(file.size / (1024 * 1024)).toFixed(2)} MB). Please select a compressed image.`);
+      return;
+    }
+
+    if (photoPreview && photoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleRemovePhoto = () => {
+    if (photoPreview && photoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhoto(null);
+    setPhotoPreview(null);
+  };
 
   const update = (e) => {
     const target = e.target;
@@ -78,9 +118,13 @@ export default function NominatePage() {
       }
     }
     if (step === 1) {
-      if (!form.full_name.trim()) { setError('Full name is required.'); return; }
+      if (!form.full_name.trim()) { setError('Full legal name is required.'); return; }
+      if (!form.creator_name.trim()) { setError('Creator / handle name is required.'); return; }
       if (!/^[6-9]\d{9}$/.test(form.phone.replace(/[^\d]/g, ''))) { setError('Enter a valid 10-digit Indian mobile number.'); return; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { setError('Enter a valid email address.'); return; }
+      if (!form.city.trim()) { setError('City is required.'); return; }
+      if (!form.state.trim()) { setError('State is required.'); return; }
+      if (!photo) { setError('Profile photograph is mandatory. Please upload your photo to continue.'); return; }
     }
     setStep(Math.min(step + 1, STEPS.length - 1));
   };
@@ -89,9 +133,20 @@ export default function NominatePage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return; // Guard against multiple rapid clicks
     setError(null);
     setMessage(null);
-    if (!form.agree) { setError('Please accept the Terms & Conditions to continue.'); return; }
+
+    if (!photo) {
+      setError('Profile photograph is mandatory. Please go back to Creator Details and upload your photo.');
+      return;
+    }
+    if (!form.agree) {
+      setError('Please accept the Terms & Conditions to continue.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       const fd = new FormData();
       selectedCategories.forEach((id) => fd.append('category_ids[]', id));
@@ -107,15 +162,17 @@ export default function NominatePage() {
       if (photo) fd.append('photo', photo);
 
       const res = await api.postMultipart('/nominations', fd);
-      if (res.message) {
+      if (res && (res.nomination_code || res.id)) {
         setNominationId(res.nomination_code || res.id);
         setNominationCodes(res.nomination_codes || [res.nomination_code || res.id]);
         setSubmitted(true);
       } else {
-        setError(res.message || 'Failed to submit. Please try again.');
+        setError(res?.message || 'Failed to submit. Please try again.');
       }
     } catch (err) {
       setError('Network error. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -141,6 +198,13 @@ export default function NominatePage() {
               Your self-nomination for the Telugu Icon Digital &amp; Influencer Awards 2026 has been successfully received and logged for verification.
             </p>
             <div className="card-preview p-6 mb-8 text-center">
+              {photoPreview && (
+                <div className="mb-4 flex justify-center">
+                  <div className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-[#d8b56b] shadow-lg shadow-black/60">
+                    <img src={photoPreview} alt={form.creator_name || form.full_name} className="w-full h-full object-cover" />
+                  </div>
+                </div>
+              )}
               <p className="text-[#a99888] text-xs uppercase tracking-widest mb-1">YOUR OFFICIAL NOMINATION ID</p>
               <p className="font-serif-luxury text-2xl sm:text-3xl font-black text-[#f1d99a]">{nominationId}</p>
               {nominationCodes.length > 1 && (
@@ -333,14 +397,76 @@ export default function NominatePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-[#cdbda9] mb-1">Profile Photograph</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setPhoto(e.target.files[0])}
-                    className="input-field text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-[#d8b56b] file:text-[#160505] file:font-bold"
-                  />
-                  {photo && <p className="text-[#8fe0a5] text-xs mt-1">✓ {photo.name} selected</p>}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-[#cdbda9]">
+                      Profile Photograph <span className="text-red-400 font-bold">*</span>
+                    </label>
+                    <span className="text-[11px] text-amber-300 font-semibold bg-amber-950/80 px-2.5 py-0.5 rounded border border-amber-500/40">
+                      ★ Mandatory (Max 1MB)
+                    </span>
+                  </div>
+
+                  {photoPreview ? (
+                    <div className="p-4 rounded-xl border border-[#d8b56b]/50 bg-black/50 flex flex-col sm:flex-row items-center gap-4 shadow-lg shadow-black/40">
+                      <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-[#d8b56b] shadow-md shadow-black/80 shrink-0">
+                        <img
+                          src={photoPreview}
+                          alt="Profile preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 text-center sm:text-left">
+                        <div className="text-sm font-bold text-white flex items-center justify-center sm:justify-start gap-1.5">
+                          <span className="text-emerald-400">✓</span> {photo?.name}
+                        </div>
+                        <div className="text-xs text-[#a99888] mt-1">
+                          Size: {photo ? (photo.size / (1024 * 1024)).toFixed(2) : 0} MB • Ready for submission
+                        </div>
+                        <div className="text-[11px] text-[#f1d99a]/90 mt-1">
+                          This photograph will appear on your official campaign kit, posters, and voting profile.
+                        </div>
+                        <div className="mt-3 flex gap-2 justify-center sm:justify-start">
+                          <label className="cursor-pointer px-3 py-1.5 rounded bg-[#d8b56b] hover:bg-[#e4c57f] text-[#160505] text-xs font-bold transition-colors">
+                            Change Photo
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/jpg"
+                              onChange={handlePhotoChange}
+                              className="hidden"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleRemovePhoto}
+                            className="px-3 py-1.5 rounded border border-red-500/40 text-red-300 hover:bg-red-950/60 text-xs font-medium transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="block p-6 rounded-xl border-2 border-dashed border-[#d8b56b]/50 hover:border-[#d8b56b] bg-black/30 hover:bg-black/50 transition-all cursor-pointer text-center group">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
+                        onChange={handlePhotoChange}
+                        className="hidden"
+                      />
+                      <div className="w-12 h-12 rounded-full bg-[#d8b56b]/15 text-[#f1d99a] flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform text-2xl">
+                        📷
+                      </div>
+                      <div className="text-sm font-bold text-[#f1d99a] mb-1">
+                        Upload Profile Photograph <span className="text-red-400 font-bold">*</span>
+                      </div>
+                      <p className="text-xs text-[#a99888] max-w-md mx-auto">
+                        JPEG, PNG, or WebP format up to <strong className="text-white">1 MB</strong>. Clear portrait photograph is required for nominee identity &amp; posters.
+                      </p>
+                      <div className="inline-block mt-3 px-4 py-1.5 rounded bg-[#d8b56b] text-[#160505] text-xs font-bold shadow">
+                        Browse &amp; Select Photo
+                      </div>
+                    </label>
+                  )}
                 </div>
               </div>
             )}
@@ -431,9 +557,27 @@ export default function NominatePage() {
             {step === 4 && (
               <div className="space-y-5">
                 <h3 className="font-serif-luxury text-xl font-bold text-white mb-2">Review Your Self-Nomination</h3>
-                <div className="p-4 rounded bg-black/40 border border-white/10 text-xs space-y-2 text-[#d7c8b8]">
-                  <div><strong className="text-white">Full Name:</strong> {form.full_name}</div>
-                  <div><strong className="text-white">Channel Name:</strong> {form.creator_name || form.full_name}</div>
+                <div className="p-4 sm:p-5 rounded-xl bg-black/40 border border-[#d8b56b]/30 text-xs space-y-3 text-[#d7c8b8]">
+                  <div className="flex items-center gap-4 pb-3 border-b border-white/10">
+                    {photoPreview ? (
+                      <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-[#d8b56b] shadow shrink-0">
+                        <img
+                          src={photoPreview}
+                          alt="Profile preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-red-950/60 border border-red-500/50 flex items-center justify-center text-[10px] text-red-300 text-center shrink-0">
+                        Missing Photo
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-bold text-white text-base">{form.creator_name || form.full_name}</div>
+                      <div className="text-[#a99888] text-xs">{form.full_name}</div>
+                      <div className="text-[#8fe0a5] text-[11px] mt-0.5">✓ Profile photo ready</div>
+                    </div>
+                  </div>
                   <div><strong className="text-white">Mobile:</strong> {form.phone}</div>
                   <div><strong className="text-white">Email:</strong> {form.email}</div>
                   <div><strong className="text-white">Location:</strong> {form.city}, {form.state}</div>
@@ -460,7 +604,7 @@ export default function NominatePage() {
               <button
                 type="button"
                 onClick={prev}
-                disabled={step === 0}
+                disabled={step === 0 || isSubmitting}
                 className="btn-outline text-xs py-2 px-5 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Back
@@ -471,8 +615,23 @@ export default function NominatePage() {
                   Continue
                 </button>
               ) : (
-                <button type="button" onClick={handleSubmit} className="btn-gold text-xs py-2 px-6">
-                  SUBMIT SELF-NOMINATION
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="btn-gold text-xs py-2.5 px-6 flex items-center justify-center gap-2 font-bold disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-[#d8b56b]/20"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-[#160505]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>SUBMITTING NOMINATION...</span>
+                    </>
+                  ) : (
+                    <span>SUBMIT SELF-NOMINATION</span>
+                  )}
                 </button>
               )}
             </div>
