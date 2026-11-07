@@ -57,8 +57,8 @@ export const NomineeHtmlPoster = forwardRef(({
   const categoryName = (category?.name || nominee?.category_name || 'Telugu YouTuber of the Year').toUpperCase();
   const photoUrl = nominee?.photo_url ? getAssetUrl(nominee.photo_url) : null;
 
-  const eventDate = (event?.date || '16 NOVEMBER 2026').toUpperCase();
-  const eventVenue = (event?.venue || 'SHILPAKALA VEDIKA, HYDERABAD').toUpperCase();
+  const eventDate = (event?.date || '13 DECEMBER 2026').toUpperCase();
+  const eventVenue = (event?.venue || 'BANJARA BHAVAN, BANJARA HILLS, HYDERABAD').toUpperCase();
 
   // Filter eligible active sponsors with valid logos
   const validSponsors = sponsors.filter(

@@ -9,32 +9,32 @@ const EVENT_PHASES = {
   phase_1: {
     badge: 'Phase 1: Nominations Open',
     title: 'Nominations Now Live',
-    targetDate: new Date('2026-11-05T23:59:59+05:30'),
-    subtitle: 'Submit your entry across 50 public categories before November 05, 2026 (max 3 categories per creator).',
+    targetDate: new Date('2026-12-05T23:59:59+05:30'),
+    subtitle: 'Submit your entry across 50 public categories before December 05, 2026 (max 3 categories per creator).',
     primaryBtn: { label: 'Self-Nominate Now', link: '/nominate' },
     secondaryBtn: { label: 'Explore Categories', link: '/awards' },
   },
   phase_2: {
     badge: 'Phase 2: Public Voting Live',
     title: 'OTP Verified Voting is Open',
-    targetDate: new Date('2026-11-15T23:59:59+05:30'),
-    subtitle: 'Cast your 100% verified vote for your favorite Telugu creators before November 15, 2026.',
+    targetDate: new Date('2026-12-10T23:59:59+05:30'),
+    subtitle: 'Cast your 100% verified vote for your favorite Telugu creators before December 10, 2026.',
     primaryBtn: { label: 'Vote Now', link: '/vote' },
     secondaryBtn: { label: 'Book Tickets', link: BOOKING_URL },
   },
   phase_3: {
     badge: 'Phase 3: Final Audit & Reconciliation',
     title: 'Voting Closed • Audit Scrutiny in Progress',
-    targetDate: new Date('2026-11-16T10:00:00+05:30'),
+    targetDate: new Date('2026-12-13T10:00:00+05:30'),
     subtitle: 'Independent audit and organizing committee reviewing final verified results before live ceremony.',
     primaryBtn: { label: 'Book Tickets', link: BOOKING_URL },
     secondaryBtn: { label: 'View Nominees', link: '/nominees' },
   },
   phase_4: {
     badge: 'Phase 4: Event Day',
-    title: 'Ceremony Day • 16 November 2026',
-    targetDate: new Date('2026-11-16T19:00:00+05:30'),
-    subtitle: 'Shilpakala Vedika, Hyderabad. Session 1: 10 AM–2 PM (Lunch) | Session 2: 3 PM–7 PM (Dinner).',
+    title: 'Ceremony Day • 13 December 2026',
+    targetDate: new Date('2026-12-13T19:00:00+05:30'),
+    subtitle: 'Banjara Bhavan, Banjara Hills, Hyderabad. Session 1: 10 AM–2 PM (Lunch) | Session 2: 3 PM–7 PM (Dinner).',
     primaryBtn: { label: 'Digital Gate Pass', link: '/tickets' },
     secondaryBtn: { label: 'Watch Highlights', link: '/videos' },
   },
@@ -61,7 +61,7 @@ export default function EventPhaseCountdown({ overridePhase }) {
             setPhaseKey(setting.setting_value);
           }
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [overridePhase]);
 

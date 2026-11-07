@@ -44,7 +44,7 @@ export default function DigitalTicket({ order, onDismiss }) {
           TELUGU ICON DIGITAL &amp; INFLUENCER AWARDS 2026
         </h3>
         <div className="text-xs font-semibold mt-1">
-          16 November 2026 • Shilpakala Vedika, Hyderabad
+          13 December 2026 • Banjara Bhavan, Banjara Hills, Hyderabad
         </div>
       </div>
 

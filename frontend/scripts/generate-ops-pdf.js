@@ -290,7 +290,7 @@ doc.text('Step-by-step production deployment', PW / 2, 166, { align: 'center' })
 
 doc.setFontSize(9);
 doc.setTextColor(120, 110, 98);
-doc.text('16 November 2026   |   Shilpakala Vedika, Hyderabad', PW / 2, 196, { align: 'center' });
+doc.text('13 December 2026   |   Banjara Bhavan, Banjara Hills, Hyderabad', PW / 2, 196, { align: 'center' });
 doc.text('Organised by Pracharam Media', PW / 2, 204, { align: 'center' });
 
 doc.setFontSize(8);

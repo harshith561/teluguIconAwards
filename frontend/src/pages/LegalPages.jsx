@@ -13,7 +13,7 @@ const LEGAL_DOCS = {
       },
       {
         heading: '2. Award Ceremony Details',
-        content: `Telugu Icon Digital & Influencer Awards 2026 is scheduled to be held on 16 November 2026, at Shilpakala Vedika, Hyderabad across two distinct sessions:
+        content: `Telugu Icon Digital & Influencer Awards 2026 is scheduled to be held on 13 December 2026, at Banjara Bhavan, Banjara Hills, Hyderabad across two distinct sessions:
 • Session 1 (10:00 AM – 2:00 PM): Digital Creators & Emerging Voices (Complimentary Lunch Included)
 • Session 2 (3:00 PM – 7:00 PM): Mega Influencers, Celebrity Icons & Grand Finale (Complimentary Dinner Included)
 The organizers reserve the right to modify the schedule or session timings if required due to operational exigencies.`,
@@ -189,7 +189,7 @@ Seating within designated zones is on a first-come, first-served basis.`,
     sections: [
       {
         heading: '1. Event Recording Notice',
-        content: `By entering the venue on August 30, 2026, all attendees, nominees, and guests grant Telugu Icon Awards the irrevocable right to photograph, film, and broadcast their likeness in official event livestreams, aftermovies, promotional reels, and archival television broadcasts without compensation.`,
+        content: `By entering the venue on 13 December 2026, all attendees, nominees, and guests grant Telugu Icon Awards the irrevocable right to photograph, film, and broadcast their likeness in official event livestreams, aftermovies, promotional reels, and archival television broadcasts without compensation.`,
       },
       {
         heading: '2. Creator Clipping Guidelines',

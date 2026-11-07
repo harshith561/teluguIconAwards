@@ -2303,7 +2303,7 @@ function TicketsTab() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="font-display text-lg font-bold text-white">Attendee Orders & Check-In</h2>
-            <p className="text-white/40 text-xs mt-1">Live entry validation for Hitex gate staff.</p>
+            <p className="text-white/40 text-xs mt-1">Live entry validation for Banjara Bhavan gate staff.</p>
           </div>
           <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <input
@@ -2403,7 +2403,7 @@ function PastEventsTab() {
   const [message, setMessage] = useState(null);
 
   // Form states
-  const [newEvent, setNewEvent] = useState({ slug: '', name: '', year: 2026, venue: 'Hitex, Hyderabad', description: '', poster_url: '' });
+  const [newEvent, setNewEvent] = useState({ slug: '', name: '', year: 2026, venue: 'Banjara Bhavan, Banjara Hills, Hyderabad', description: '', poster_url: '' });
   const [newAwardee, setNewAwardee] = useState({ past_event_id: '', name: '', category: '', award_type: 'Winner', year: 2025, photo_url: '', bio: '' });
 
   const load = (force = false) => {
@@ -2423,7 +2423,7 @@ function PastEventsTab() {
     e.preventDefault();
     const res = await api.post('/admin/past-events', newEvent);
     setMessage({ type: 'success', text: res.message || 'Event created' });
-    setNewEvent({ slug: '', name: '', year: 2026, venue: 'Hitex, Hyderabad', description: '', poster_url: '' });
+    setNewEvent({ slug: '', name: '', year: 2026, venue: 'Banjara Bhavan, Banjara Hills, Hyderabad', description: '', poster_url: '' });
     load(true);
     setTimeout(() => setMessage(null), 3000);
   };
@@ -3048,7 +3048,7 @@ function PhaseTab() {
       id: 'phase_1',
       num: 1,
       title: 'Nominations Open',
-      desc: 'Campaign launch. Hero highlights self and peer nomination forms. Countdown targets June 30, 2026.',
+      desc: 'Campaign launch. Hero highlights self-nomination forms. Countdown targets December 05, 2026.',
       cta: 'Nominate Now',
     },
     {
@@ -3068,8 +3068,8 @@ function PhaseTab() {
     {
       id: 'phase_4',
       num: 4,
-      title: 'Event Day (August 30, 2026)',
-      desc: 'Grand Gala day at Hitex. Gate QR code scanning, session schedule, and live streams.',
+      title: 'Event Day (13 December 2026)',
+      desc: 'Grand Gala day at Banjara Bhavan, Banjara Hills, Hyderabad. Gate QR code scanning, session schedule, and live streams.',
       cta: 'Gate Ticket Pass',
     },
     {

@@ -184,7 +184,7 @@ export default function AwardsPage() {
             <p className="text-[#d7c8b8] text-xs leading-relaxed">
               👑 <strong className="text-white">Jury &amp; Special Recognition Awards</strong> are evaluated by the official jury on contribution,
               influence, originality, impact and achievement — announced live at the awards ceremony on
-              <span className="text-[#f1d99a] font-bold"> 16 November 2026</span> at Shilpakala Vedika, Hyderabad.
+              <span className="text-[#f1d99a] font-bold"> 13 December 2026</span> at Banjara Bhavan, Banjara Hills, Hyderabad.
             </p>
           </div>
         </div>

@@ -73,7 +73,7 @@ export default function Navbar() {
       <div className="fixed top-0 left-0 right-0 z-50 bg-[#0d0303] border-b border-[rgba(216,181,107,0.25)] text-[10px] sm:text-[11px] text-[#cdbda9] py-1 sm:py-1.5 px-2 sm:px-4 tracking-wider">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-0.5 sm:gap-1 font-semibold text-center sm:text-left">
           <span className="text-[#a99888] tracking-[0.12em] sm:tracking-[0.15em] text-[9px] sm:text-[10px]">PRACHARAM MEDIA PRESENTS</span>
-          <span className="text-[#f1d99a] tracking-wide text-[10px] sm:text-[11px]">16 NOVEMBER 2026 · SHILPAKALA VEDIKA, HYDERABAD</span>
+          <span className="text-[#f1d99a] tracking-wide text-[10px] sm:text-[11px]">13 DECEMBER 2026 · BANJARA BHAVAN, BANJARA HILLS, HYDERABAD</span>
         </div>
       </div>
 
@@ -104,8 +104,8 @@ export default function Navbar() {
                   key={link.path}
                   to={link.path}
                   className={`px-3 py-1.5 rounded-xl text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${isActive(link.path)
-                      ? 'text-champagne-400 bg-champagne-500/15 font-semibold border border-champagne-500/30'
-                      : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
+                    ? 'text-champagne-400 bg-champagne-500/15 font-semibold border border-champagne-500/30'
+                    : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
                     }`}
                 >
                   <span>{link.label}</span>
@@ -123,8 +123,8 @@ export default function Navbar() {
                   onClick={() => setExploreOpen(!exploreOpen)}
                   onMouseEnter={() => setExploreOpen(true)}
                   className={`px-3 py-1.5 rounded-xl text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${isExploreActive || exploreOpen
-                      ? 'text-champagne-400 bg-champagne-500/15 font-semibold border border-champagne-500/30'
-                      : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
+                    ? 'text-champagne-400 bg-champagne-500/15 font-semibold border border-champagne-500/30'
+                    : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
                     }`}
                 >
                   <span>Explore</span>
@@ -154,8 +154,8 @@ export default function Navbar() {
                           to={item.path}
                           onClick={() => setExploreOpen(false)}
                           className={`flex items-start gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${isActive(item.path)
-                              ? 'bg-champagne-500/15 text-champagne-400 font-semibold'
-                              : 'text-white/80 hover:bg-white/5 hover:text-white'
+                            ? 'bg-champagne-500/15 text-champagne-400 font-semibold'
+                            : 'text-white/80 hover:bg-white/5 hover:text-white'
                             }`}
                         >
                           <span className="text-base shrink-0 mt-0.5">{item.icon}</span>
@@ -279,8 +279,8 @@ export default function Navbar() {
                       to={link.path}
                       onClick={() => setIsOpen(false)}
                       className={`w-full px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center justify-between ${isActive(link.path)
-                          ? 'text-champagne-400 bg-champagne-500/15 font-bold border border-champagne-500/20'
-                          : 'text-white/70 hover:text-white hover:bg-white/5'
+                        ? 'text-champagne-400 bg-champagne-500/15 font-bold border border-champagne-500/20'
+                        : 'text-white/70 hover:text-white hover:bg-white/5'
                         }`}
                     >
                       <span>{link.label}</span>
@@ -304,8 +304,8 @@ export default function Navbar() {
                       to={item.path}
                       onClick={() => setIsOpen(false)}
                       className={`w-full px-3.5 py-2 text-xs font-medium rounded-xl transition-all flex items-center gap-3 ${isActive(item.path)
-                          ? 'text-champagne-400 bg-champagne-500/15 font-bold'
-                          : 'text-white/60 hover:text-white hover:bg-white/5'
+                        ? 'text-champagne-400 bg-champagne-500/15 font-bold'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
                         }`}
                     >
                       <span>{item.icon}</span>
@@ -316,8 +316,8 @@ export default function Navbar() {
               </div>
 
               <div className="pt-6 mt-auto border-t border-white/10 text-center text-[11px] text-white/40 shrink-0">
-                16 November 2026<br />
-                <span className="text-champagne-400/70">Shilpakala Vedika, Hyderabad</span>
+                13 December 2026<br />
+                <span className="text-champagne-400/70">Banjara Bhavan, Banjara Hills, Hyderabad</span>
               </div>
             </motion.div>
           </motion.div>

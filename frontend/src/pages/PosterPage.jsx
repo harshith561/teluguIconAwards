@@ -568,8 +568,8 @@ export default function PosterPage() {
                     qrUrl={qrCodeDataUrl || (selectedNominee ? qrUrl(selectedNominee) : null)}
                     format={format}
                     event={{
-                      date: '16 NOVEMBER 2026',
-                      venue: 'SHILPAKALA VEDIKA, HYDERABAD',
+                      date: '13 DECEMBER 2026',
+                      venue: 'BANJARA BHAVAN, BANJARA HILLS, HYDERABAD',
                     }}
                   />
                 </div>

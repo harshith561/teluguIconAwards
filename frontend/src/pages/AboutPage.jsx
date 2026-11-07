@@ -34,7 +34,7 @@ const FAQS = [
   },
   {
     q: 'When and where is the Telugu Icon Awards Ceremony?',
-    a: 'The Telugu Icon Digital & Influencer Awards 2026 takes place on 16 November 2026 at Shilpakala Vedika, Hyderabad. Session 1 runs from 10:00 AM to 2:00 PM (with Complimentary Lunch) and Session 2 from 3:00 PM to 7:00 PM (with Complimentary Dinner), organized and presented by Pracharam Media.',
+    a: 'The Telugu Icon Digital & Influencer Awards 2026 takes place on 13 December 2026 at Banjara Bhavan, Banjara Hills, Hyderabad. Session 1 runs from 10:00 AM to 2:00 PM (with Complimentary Lunch) and Session 2 from 3:00 PM to 7:00 PM (with Complimentary Dinner), organized and presented by Pracharam Media.',
   },
   {
     q: 'How can I sponsor or partner with the awards?',

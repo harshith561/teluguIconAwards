@@ -71,26 +71,26 @@ const ALL_CATEGORIES_DATA = [
 ];
 
 const FAQS = [
-  { q: 'When is Telugu Icon Digital & Influencer Awards 2026?', a: 'November 16, 2026 at Shilpakalavedika, Hyderabad.' },
+  { q: 'When is Telugu Icon Digital & Influencer Awards 2026?', a: 'December 13, 2026 at Banjara Bhavan, Banjara Hills, Hyderabad.' },
   { q: 'Is this a cinema or OTT awards event?', a: 'No. The current event is specifically a Digital & Influencer Awards event focused on Telugu creators and digital influence.' },
-  { q: 'When do nominations open?', a: 'Self-nominations open October 1, 2026 and close November 5, 2026.' },
+  { q: 'When do nominations open?', a: 'Self-nominations open November 10, 2026 and close December 5, 2026.' },
   { q: 'Can I nominate someone else?', a: 'No. Only self-nominations are accepted.' },
   { q: 'How many categories can I self-nominate for?', a: 'Each creator/influencer may self-nominate in a maximum of 3 categories only, and every selected category must be genuinely relevant to their content.' },
-  { q: 'When does public voting open?', a: 'Voting opens October 10, 2026.' },
-  { q: 'Will vote counts be visible?', a: 'Yes. Verified public vote counts and category positions will be displayed publicly through November 11. From November 12, public vote totals and rankings are hidden while voting continues securely until November 15.' },
-  { q: 'When does voting close?', a: 'November 15, 2026 at 11:59 PM.' },
+  { q: 'When does public voting open?', a: 'Voting opens November 15, 2026.' },
+  { q: 'Will vote counts be visible?', a: 'Yes. Verified public vote counts and category positions will be displayed publicly through December 9. From December 10, public vote totals and rankings are hidden while voting continues securely until December 10.' },
+  { q: 'When does voting close?', a: 'December 10, 2026 at 11:59 PM.' },
   { q: 'Are tickets refundable?', a: 'Tickets are non-refundable and non-cancellable except where a refund is required due to event cancellation or applicable law.' },
   { q: 'What are the two event sessions?', a: 'Session 1 is 10:00 AM – 2:00 PM with complimentary lunch. Session 2 is 3:00 PM – 7:00 PM with complimentary dinner.' },
   { q: 'Will the website show the number of seats remaining?', a: 'No. The public ticketing interface will show only availability status such as Available, Filling Fast, Almost Sold Out or Sold Out.' }
 ];
 
 const MILESTONES = [
-  { target: '2026-10-01T00:00:00+05:30', label: 'NOMINATIONS OPEN IN', name: 'NOMINATIONS OPEN · 01 OCTOBER 2026' },
-  { target: '2026-10-10T00:00:00+05:30', label: 'VOTING OPENS IN', name: 'VOTING OPENS · 10 OCTOBER 2026' },
-  { target: '2026-11-05T23:59:59+05:30', label: 'NOMINATIONS CLOSE IN', name: 'NOMINATIONS CLOSE · 05 NOVEMBER 2026' },
-  { target: '2026-11-12T00:00:00+05:30', label: 'PUBLIC VOTE DISPLAY OFF IN', name: 'PUBLIC VOTE DISPLAY OFF · 12 NOVEMBER 2026' },
-  { target: '2026-11-15T23:59:59+05:30', label: 'VOTING CLOSES IN', name: 'VOTING CLOSES · 15 NOVEMBER 2026' },
-  { target: '2026-11-16T10:00:00+05:30', label: 'THE ICONS ARE REVEALED IN', name: 'EVENT DAY · 16 NOVEMBER 2026' }
+  { target: '2026-11-10T00:00:00+05:30', label: 'NOMINATIONS OPEN IN', name: 'NOMINATIONS OPEN · 10 NOVEMBER 2026' },
+  { target: '2026-11-15T00:00:00+05:30', label: 'VOTING OPENS IN', name: 'VOTING OPENS · 15 NOVEMBER 2026' },
+  { target: '2026-12-05T23:59:59+05:30', label: 'NOMINATIONS CLOSE IN', name: 'NOMINATIONS CLOSE · 05 DECEMBER 2026' },
+  { target: '2026-12-10T00:00:00+05:30', label: 'PUBLIC VOTE DISPLAY OFF IN', name: 'PUBLIC VOTE DISPLAY OFF · 10 DECEMBER 2026' },
+  { target: '2026-12-10T23:59:59+05:30', label: 'VOTING CLOSES IN', name: 'VOTING CLOSES · 10 DECEMBER 2026' },
+  { target: '2026-12-13T10:00:00+05:30', label: 'THE ICONS ARE REVEALED IN', name: 'EVENT DAY · 13 DECEMBER 2026' }
 ];
 
 function pad(n) {
@@ -211,10 +211,10 @@ export default function HomePage() {
 
           <div className="flex justify-center flex-wrap gap-2 mb-6 sm:mb-8">
             <div className="px-2.5 py-1.5 sm:px-4 sm:py-2 border border-[rgba(216,181,107,0.3)] bg-black/20 text-[#f5e7d4] text-[10px] sm:text-xs font-bold tracking-wider rounded">
-              16 NOVEMBER 2026
+              13 DECEMBER 2026
             </div>
             <div className="px-2.5 py-1.5 sm:px-4 sm:py-2 border border-[rgba(216,181,107,0.3)] bg-black/20 text-[#f5e7d4] text-[10px] sm:text-xs font-bold tracking-wider rounded">
-              SHILPAKALA VEDIKA · HYDERABAD
+              BANJARA BHAVAN, BANJARA HILLS, HYDERABAD
             </div>
             <div className="px-2.5 py-1.5 sm:px-4 sm:py-2 border border-[rgba(216,181,107,0.3)] bg-black/20 text-[#f5e7d4] text-[10px] sm:text-xs font-bold tracking-wider rounded">
               TWO SESSIONS
@@ -264,7 +264,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-6 sm:mt-8 text-[11px] sm:text-xs text-[#d9c6b0]/80 px-2">
-            Nominations: 01 Oct – 05 Nov · Voting: 10 Oct – 15 Nov · Vote display hidden from 12 Nov
+            Nominations: 10 Nov – 05 Dec · Voting: 15 Nov – 10 Dec · Vote display hidden from 10 Dec
           </div>
         </div>
       </section>
@@ -322,7 +322,7 @@ export default function HomePage() {
               { num: '02', t: 'Get Verified', d: 'Your nomination moves through the official review process.' },
               { num: '03', t: 'Get Your Kit', d: 'Receive your personalised nominee poster, link and QR.' },
               { num: '04', t: 'Campaign & Vote', d: 'Share your page and mobilise your audience.' },
-              { num: '05', t: 'Become an Icon', d: 'Winners are announced live on November 16; final verified results are published transparently after the ceremony.' },
+              { num: '05', t: 'Become an Icon', d: 'Winners are announced live on December 13; final verified results are published transparently after the ceremony.' },
             ].map((st) => (
               <div key={st.num} className="card-preview p-4 sm:p-6 text-center group hover:border-[#d8b56b] transition-all">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-[#d8b56b] text-[#f1d99a] font-black flex items-center justify-center mx-auto mb-3 sm:mb-4 group-hover:scale-110 transition-transform text-sm sm:text-base">
@@ -467,7 +467,7 @@ export default function HomePage() {
       {/* 5. NOMINATION SECTION */}
       <section className="py-12 sm:py-20 md:py-24 bg-gradient-to-r from-[#500000] via-[#860000] to-[#430000] text-center" id="nominate">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#f1d99a] font-black uppercase mb-2">01 OCTOBER 2026</div>
+          <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#f1d99a] font-black uppercase mb-2">10 NOVEMBER 2026</div>
           <h2 className="section-title text-2xl sm:text-4xl md:text-5xl text-[#fff7e8]">Own Your Story. Self-Nominate.</h2>
           <p className="text-[#f0dcc1] text-xs sm:text-sm md:text-base max-w-2xl mx-auto mb-3">
             Self-nominations only. There is no “Nominate Someone Else” option.
@@ -478,17 +478,17 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 mb-8 sm:mb-10">
             <div className="border border-[rgba(255,240,210,0.25)] bg-black/25 p-4 sm:p-6 rounded text-left">
-              <div className="text-xs text-[#f1d99a] font-black tracking-wider mb-1.5 sm:mb-2">01 OCT</div>
+              <div className="text-xs text-[#f1d99a] font-black tracking-wider mb-1.5 sm:mb-2">10 NOV</div>
               <h3 className="font-serif-luxury text-lg sm:text-xl font-bold text-white mb-1.5 sm:mb-2">Nominations Open</h3>
               <p className="text-[#ead8c0] text-xs">Creators can submit their own nominations across eligible categories.</p>
             </div>
             <div className="border border-[rgba(255,240,210,0.25)] bg-black/25 p-4 sm:p-6 rounded text-left">
-              <div className="text-xs text-[#f1d99a] font-black tracking-wider mb-1.5 sm:mb-2">01–09 OCT</div>
+              <div className="text-xs text-[#f1d99a] font-black tracking-wider mb-1.5 sm:mb-2">10–14 NOV</div>
               <h3 className="font-serif-luxury text-lg sm:text-xl font-bold text-white mb-1.5 sm:mb-2">Creator Acquisition</h3>
               <p className="text-[#ead8c0] text-xs">Creators receive verification support and prepare campaign assets.</p>
             </div>
             <div className="border border-[rgba(255,240,210,0.25)] bg-black/25 p-4 sm:p-6 rounded text-left">
-              <div className="text-xs text-[#f1d99a] font-black tracking-wider mb-1.5 sm:mb-2">10 OCT</div>
+              <div className="text-xs text-[#f1d99a] font-black tracking-wider mb-1.5 sm:mb-2">15 NOV</div>
               <h3 className="font-serif-luxury text-lg sm:text-xl font-bold text-white mb-1.5 sm:mb-2">Voting Goes Live</h3>
               <p className="text-[#ead8c0] text-xs">Approved nominees enter the public voting phase.</p>
             </div>
@@ -593,10 +593,10 @@ export default function HomePage() {
       <section className="py-12 sm:py-20 md:py-24 bg-[#120404]" id="vote">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-8 sm:mb-12">
-            <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#d8b56b] font-black uppercase mb-2">10 October – 15 November 2026</div>
+            <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#d8b56b] font-black uppercase mb-2">15 November – 10 December 2026</div>
             <h2 className="section-title text-2xl sm:text-4xl md:text-5xl">Every Vote Counts. Every Vote Is Visible.</h2>
             <p className="text-[#a99888] text-xs sm:text-sm leading-relaxed">
-              Public voting opens October 10 and closes November 15 at 11:59 PM. Verified vote counts and category positions are publicly displayed through November 11. From November 12, public vote totals and rankings are hidden while voting continues securely until November 15.
+              Public voting opens November 15 and closes December 10 at 11:59 PM. Verified vote counts and category positions are publicly displayed through December 9. From December 10, public vote totals and rankings are hidden while voting continues securely until December 10.
             </p>
           </div>
 
@@ -630,12 +630,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 9. OFFICIAL TIMELINE: ROAD TO NOVEMBER 16 */}
+      {/* 9. OFFICIAL TIMELINE: ROAD TO DECEMBER 13 */}
       <section className="py-12 sm:py-20 md:py-24 bg-[#160505]">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
             <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#d8b56b] font-black uppercase mb-2">Official Timeline</div>
-            <h2 className="section-title text-2xl sm:text-4xl md:text-5xl">The Road to November 16.</h2>
+            <h2 className="section-title text-2xl sm:text-4xl md:text-5xl">The Road to December 13.</h2>
             <p className="text-[#a99888] text-xs sm:text-sm md:text-base">
               Live countdowns below are driven by the official event schedule.
             </p>
@@ -643,12 +643,12 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
             {[
-              { target: '2026-10-01T00:00:00+05:30', date: '01 OCT 2026', t: 'Nominations Open', d: 'Self-nominations open for all 50 public-voting categories. Maximum 3 relevant categories per creator.' },
-              { target: '2026-11-05T23:59:59+05:30', date: '05 NOV 2026 · 11:59 PM', t: 'Nominations Close', d: 'New self-nominations stop. Verification and shortlisting continue.' },
-              { target: '2026-10-10T00:00:00+05:30', date: '10 OCT 2026', t: 'Voting Opens', d: 'Public voting begins for approved nominees across all 50 eligible categories.' },
-              { target: '2026-11-12T00:00:00+05:30', date: '12 NOV 2026', t: 'Public Vote Display Off', d: 'Live vote totals and public rankings are hidden. Voting remains open and the secure backend continues recording valid votes.' },
-              { target: '2026-11-15T23:59:59+05:30', date: '15 NOV 2026 · 11:59 PM', t: 'Voting Closes', d: 'Voting stops. Final verification, duplicate checks, suspicious-activity review and vote reconciliation begin.' },
-              { target: '2026-11-16T10:00:00+05:30', date: '16 NOV 2026 · 10:00 AM', t: 'Winners Announced Live', d: 'Winners are announced at Shilpakala Vedika. No winner is displayed on the website before the official announcement.' },
+              { target: '2026-11-10T00:00:00+05:30', date: '10 NOV 2026', t: 'Nominations Open', d: 'Self-nominations open for all 50 public-voting categories. Maximum 3 relevant categories per creator.' },
+              { target: '2026-11-15T00:00:00+05:30', date: '15 NOV 2026', t: 'Voting Opens', d: 'Public voting begins for approved nominees across all 50 eligible categories.' },
+              { target: '2026-12-05T23:59:59+05:30', date: '05 DEC 2026 · 11:59 PM', t: 'Nominations Close', d: 'New self-nominations stop. Verification and shortlisting continue.' },
+              { target: '2026-12-10T00:00:00+05:30', date: '10 DEC 2026', t: 'Public Vote Display Off', d: 'Live vote totals and public rankings are hidden. Voting remains open and the secure backend continues recording valid votes.' },
+              { target: '2026-12-10T23:59:59+05:30', date: '10 DEC 2026 · 11:59 PM', t: 'Voting Closes', d: 'Voting stops. Final verification, duplicate checks, suspicious-activity review and vote reconciliation begin.' },
+              { target: '2026-12-13T10:00:00+05:30', date: '13 DEC 2026 · 10:00 AM', t: 'Winners Announced Live', d: 'Winners are announced at Banjara Bhavan, Banjara Hills, Hyderabad. No winner is displayed on the website before the official announcement.' },
             ].map((p) => {
               const tm = timelineTimes[p.target] || { d: '00', h: '00', m: '00', s: '00', ended: false };
               return (
@@ -689,27 +689,27 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mb-6 sm:mb-8">
             <div className="card-preview p-4 sm:p-6">
-              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">10 OCT – 11 NOV</h3>
+              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">15 NOV – 09 DEC</h3>
               <p className="text-[#d7c8b8] text-xs leading-relaxed">
                 <strong>Live Public Results.</strong> Verified vote totals, category positions and last-updated information may be displayed publicly for the 50 voting categories.
               </p>
             </div>
             <div className="card-preview p-4 sm:p-6">
-              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">12 NOV – 15 NOV</h3>
+              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">10 DEC</h3>
               <p className="text-[#d7c8b8] text-xs leading-relaxed">
                 <strong>Vote Display Hidden.</strong> Voting remains fully open, but public vote totals, rankings and leaderboard counts are hidden to avoid influencing late-stage voting.
               </p>
             </div>
             <div className="card-preview p-4 sm:p-6">
-              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">15 NOV · 11:59 PM</h3>
+              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">10 DEC · 11:59 PM</h3>
               <p className="text-[#d7c8b8] text-xs leading-relaxed">
                 <strong>Voting Locked.</strong> No new votes are accepted after the published closing time. The system begins final reconciliation and verification.
               </p>
             </div>
             <div className="card-preview p-4 sm:p-6">
-              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">16 NOV · LIVE EVENT</h3>
+              <h3 className="font-serif-luxury text-[#f1d99a] text-base sm:text-lg font-bold mb-1.5 sm:mb-2">13 DEC · LIVE EVENT</h3>
               <p className="text-[#d7c8b8] text-xs leading-relaxed">
-                <strong>Winners Announced.</strong> Winners are revealed on stage at Shilpakala Vedika, Hyderabad. The website will not publish winners early.
+                <strong>Winners Announced.</strong> Winners are revealed on stage at Banjara Bhavan, Banjara Hills, Hyderabad. The website will not publish winners early.
               </p>
             </div>
             <div className="card-preview p-4 sm:p-6">
@@ -996,7 +996,7 @@ export default function HomePage() {
       <section className="py-12 sm:py-20 md:py-24 bg-gradient-to-r from-[#760000] via-[#4b0000] to-[#760000] text-center px-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#f1d99a] font-black uppercase mb-2 sm:mb-3">
-            16 November 2026 · Shilpakalavedika, Hyderabad
+            13 December 2026 · Banjara Bhavan, Banjara Hills, Hyderabad
           </div>
           <h2 className="font-serif-luxury text-2xl sm:text-4xl md:text-5xl font-black text-[#fff7e8] leading-tight mb-3 sm:mb-4">
             Creators. Communities. Culture. Influence. Impact.

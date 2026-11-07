@@ -244,7 +244,7 @@ export default function NominatePage() {
       <section className="relative py-12 sm:py-20 bg-gradient-to-br from-[#330000] via-[#820000] to-[#3d0000] text-center overflow-hidden px-3 sm:px-4">
         <div className="relative max-w-3xl mx-auto">
           <div className="text-[10px] tracking-[3px] sm:tracking-[4px] text-[#f1d99a] font-black uppercase mb-2">
-            01 OCTOBER 2026 – 05 NOVEMBER 2026
+            10 NOVEMBER 2026 – 05 DECEMBER 2026
           </div>
           <h1 className="font-serif-luxury text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-[#fff7e8] mb-3 sm:mb-4">
             Own Your Story. <span className="text-[#f1d99a]">Self-Nominate.</span>

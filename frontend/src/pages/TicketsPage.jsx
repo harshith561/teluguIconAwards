@@ -136,7 +136,7 @@ export default function TicketsPage() {
       doc.text('Digital & Influencer Awards 2026', PAGE_W / 2, 21.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
-      doc.text('16 November 2026  |  Shilpakala Vedika, Hyderabad', PAGE_W / 2, 26.5, { align: 'center' });
+      doc.text('13 December 2026  |  Banjara Bhavan, Banjara Hills, Hyderabad', PAGE_W / 2, 26.5, { align: 'center' });
 
       const qrPng = await buildQrPng();
       const QR_SIZE = 62;
@@ -172,8 +172,8 @@ export default function TicketsPage() {
         ['Session', toPdfText(`Session ${order.session} - ${s.time}`), 'helvetica', ...INK],
         ['Ticket', toPdfText(`${TIER_LABELS[order.tier] || order.tier}${order.quantity > 1 ? ` (${order.quantity} persons)` : ''}`), 'helvetica', ...INK],
         ['Food', toPdfText(s.food), 'helvetica', ...INK],
-        ['Date', '16 November 2026', 'helvetica', ...INK],
-        ['Venue', 'Shilpakala Vedika, Hyderabad', 'helvetica', ...INK],
+        ['Date', '13 December 2026', 'helvetica', ...INK],
+        ['Venue', 'Banjara Bhavan, Banjara Hills, Hyderabad', 'helvetica', ...INK],
       ];
 
       let y = qrY + QR_SIZE + 20;
@@ -230,7 +230,7 @@ export default function TicketsPage() {
       <section className="relative py-12 sm:py-20 bg-hero-gradient overflow-hidden px-3 sm:px-4">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,#0a0a0a_100%)]" />
         <div className="relative max-w-4xl mx-auto text-center">
-          <p className="section-subtitle">16 November 2026 · Shilpakala Vedika, Hyderabad</p>
+          <p className="section-subtitle">13 December 2026 · Banjara Bhavan, Banjara Hills, Hyderabad</p>
           <h1 className="font-display text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-3 sm:mb-4">
             <span className="gold-text">Book Your</span> <span className="text-white">Tickets</span>
           </h1>
@@ -540,8 +540,8 @@ export default function TicketsPage() {
                   <div className="flex justify-between"><span className="text-white/50">Session</span><span className="text-white">Session {order.session} · {SESSION_LABELS[order.session].time}</span></div>
                   <div className="flex justify-between"><span className="text-white/50">Ticket</span><span className="text-white">{TIER_LABELS[order.tier]}</span></div>
                   <div className="flex justify-between"><span className="text-white/50">Food</span><span className="text-white">{SESSION_LABELS[order.session].food}</span></div>
-                  <div className="flex justify-between"><span className="text-white/50">Date</span><span className="text-white">16 November 2026</span></div>
-                  <div className="flex justify-between"><span className="text-white/50">Venue</span><span className="text-white">Shilpakala Vedika, Hyderabad</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Date</span><span className="text-white">13 December 2026</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Venue</span><span className="text-white">Banjara Bhavan, Banjara Hills, Hyderabad</span></div>
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -549,7 +549,7 @@ export default function TicketsPage() {
                   {pdfBusy ? 'Generating PDF...' : '📄 Download Ticket (PDF)'}
                 </button>
                 <button onClick={() => window.print()} className="btn-outline">🖨️ Print Ticket</button>
-                <a href={`https://wa.me/?text=${encodeURIComponent(`I'm attending the Telugu Icon Digital & Influencer Awards 2026! Session ${order.session} · ${SESSION_LABELS[order.session].time} · Shilpakala Vedika, Hyderabad. Order: ${order.order_code}`)}`} target="_blank" rel="noopener noreferrer" className="btn-outline">Share on WhatsApp</a>
+                <a href={`https://wa.me/?text=${encodeURIComponent(`I'm attending the Telugu Icon Digital & Influencer Awards 2026! Session ${order.session} · ${SESSION_LABELS[order.session].time} · Banjara Bhavan, Banjara Hills, Hyderabad. Order: ${order.order_code}`)}`} target="_blank" rel="noopener noreferrer" className="btn-outline">Share on WhatsApp</a>
               </div>
             </div>
           )}

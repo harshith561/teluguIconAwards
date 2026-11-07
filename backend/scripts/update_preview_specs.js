@@ -29,9 +29,9 @@ async function run() {
   // Update settings
   const settingsToUpdate = [
     ['event_name', 'Telugu Icon Digital & Influencer Awards 2026'],
-    ['event_date', '2026-11-16 10:00:00'],
-    ['event_venue', 'Shilpakala Vedika, Hyderabad'],
-    ['contact_address', 'Shilpakala Vedika, Hitec City, Hyderabad, Telangana'],
+    ['event_date', '2026-12-13 10:00:00'],
+    ['event_venue', 'Banjara Bhavan, Banjara Hills, Hyderabad'],
+    ['contact_address', 'Banjara Bhavan, Banjara Hills, Hyderabad, Telangana'],
     ['hero_headline', 'Telugu Icon'],
     ['hero_subheadline', 'Celebrating the creators, communities and digital voices shaping Telugu culture, influence and impact.'],
     ['event_tagline', 'The Telugu Digital Creator Celebration'],

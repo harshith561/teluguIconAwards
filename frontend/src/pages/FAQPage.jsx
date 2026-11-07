@@ -6,7 +6,7 @@ const FAQS = [
   {
     category: 'general',
     q: 'When is Telugu Icon Digital & Influencer Awards 2026?',
-    a: 'November 16, 2026 at Shilpakala Vedika, Hyderabad.',
+    a: 'December 13, 2026 at Banjara Bhavan, Banjara Hills, Hyderabad.',
   },
   {
     category: 'general',
@@ -16,7 +16,7 @@ const FAQS = [
   {
     category: 'nominations',
     q: 'When do self-nominations open and close?',
-    a: 'Self-nominations open October 1, 2026 and close November 5, 2026 at 11:59 PM.',
+    a: 'Self-nominations open November 10, 2026 and close December 5, 2026 at 11:59 PM.',
   },
   {
     category: 'nominations',
@@ -36,12 +36,12 @@ const FAQS = [
   {
     category: 'voting',
     q: 'When does public voting open and close?',
-    a: 'Public voting opens October 10, 2026 and closes November 15, 2026 at 11:59 PM.',
+    a: 'Public voting opens November 15, 2026 and closes December 10, 2026 at 11:59 PM.',
   },
   {
     category: 'voting',
     q: 'Will vote counts be visible publicly?',
-    a: 'Yes. Verified public vote counts and category positions will be displayed during the voting period through November 11. From November 12, public vote totals and rankings are hidden while voting continues securely until November 15.',
+    a: 'Yes. Verified public vote counts and category positions will be displayed during the voting period through December 9. From December 10, public vote totals and rankings are hidden while voting continues securely until December 10.',
   },
   {
     category: 'voting',
@@ -51,7 +51,7 @@ const FAQS = [
   {
     category: 'tickets',
     q: 'What are the two event sessions?',
-    a: 'Session 1 is 10:00 AM – 2:00 PM with complimentary lunch. Session 2 is 3:00 PM – 7:00 PM with complimentary dinner at Shilpakala Vedika, Hyderabad.',
+    a: 'Session 1 is 10:00 AM – 2:00 PM with complimentary lunch. Session 2 is 3:00 PM – 7:00 PM with complimentary dinner at Banjara Bhavan, Banjara Hills, Hyderabad.',
   },
   {
     category: 'tickets',
@@ -166,11 +166,10 @@ export default function FAQPage() {
                   setActiveCategory(cat.key);
                   setOpenIdx(null);
                 }}
-                className={`px-4 py-2 rounded-xl text-xs md:text-sm font-medium transition-all duration-300 ${
-                  activeCategory === cat.key
+                className={`px-4 py-2 rounded-xl text-xs md:text-sm font-medium transition-all duration-300 ${activeCategory === cat.key
                     ? 'bg-champagne-500 text-ink-900 shadow-gold font-bold'
                     : 'bg-ink-800 text-white/60 border border-white/10 hover:border-champagne-500/40 hover:text-white'
-                }`}
+                  }`}
               >
                 {cat.label}
               </button>
@@ -194,11 +193,10 @@ export default function FAQPage() {
                 return (
                   <div
                     key={idx}
-                    className={`rounded-2xl border transition-all duration-300 overflow-hidden ${
-                      isOpen
+                    className={`rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen
                         ? 'bg-ink-800/90 border-champagne-500/40 shadow-gold'
                         : 'bg-ink-800/40 border-white/5 hover:border-white/20'
-                    }`}
+                      }`}
                   >
                     <button
                       onClick={() => setOpenIdx(isOpen ? null : idx)}
@@ -208,11 +206,10 @@ export default function FAQPage() {
                         {item.q}
                       </span>
                       <span
-                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 border transition-transform duration-300 ${
-                          isOpen
+                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 border transition-transform duration-300 ${isOpen
                             ? 'rotate-180 bg-champagne-500 text-ink-900 border-champagne-400'
                             : 'bg-white/5 text-white/60 border-white/10'
-                        }`}
+                          }`}
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

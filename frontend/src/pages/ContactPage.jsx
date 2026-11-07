@@ -74,7 +74,7 @@ export default function ContactPage() {
                 { icon: '🤝', label: 'Partnerships', value: 'partnerships@teluguiconawards.in' },
                 { icon: '📰', label: 'Media & PR', value: 'media@teluguiconawards.in' },
                 { icon: '📞', label: 'Phone', value: '+91 94944 57274 / +91 92664 70997' },
-                { icon: '📍', label: 'Venue', value: 'Shilpakala Vedika, Hyderabad' },
+                { icon: '📍', label: 'Venue', value: 'Banjara Bhavan, Banjara Hills, Hyderabad' },
                 { icon: '⏰', label: 'Response Time', value: 'Within 24-48 hours' },
               ].map((item) => (
                 <div key={item.label} className="glass-card p-5 flex items-start space-x-4">

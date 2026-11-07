@@ -1481,8 +1481,8 @@ export const buildPoster = async (nominee, options = {}) => {
   const footerW = Math.min(maxContentW, 560 * scale);
   const footerX = cx - footerW / 2;
 
-  const eventDate = (options.event?.date || '16 NOVEMBER 2026').toUpperCase();
-  const eventVenue = (options.event?.venue || 'SHILPAKALA VEDIKA, HYDERABAD').toUpperCase();
+  const eventDate = (options.event?.date || '13 DECEMBER 2026').toUpperCase();
+  const eventVenue = (options.event?.venue || 'BANJARA BHAVAN, BANJARA HILLS, HYDERABAD').toUpperCase();
   const eventBannerText = `📅  ${eventDate}   |   📍  ${eventVenue}`;
 
   ctx.fillStyle = 'rgba(15, 10, 6, 0.85)';
@@ -1670,8 +1670,8 @@ ${sponsorInfo}
 
 EVENT DETAILS:
 Event:  Telugu Icon Digital & Influencer Awards 2026
-Date:   16 November 2026
-Venue:  Shilpakala Vedika, Hyderabad
+Date:   13 December 2026
+Venue:  Banjara Bhavan, Banjara Hills, Hyderabad
 Voting: 100% Public, Mobile OTP Verified (Anti-Bot Protected)
 
 ------------------------------------------------------------------------

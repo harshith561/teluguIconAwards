@@ -93,9 +93,8 @@ export default function SponsorsPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className={`glass-card p-4 sm:p-6 group hover:bg-white/[0.07] hover:border-champagne-500/40 transition-all duration-300 ${
-                  tier.key === 'title_partner' ? 'bg-champagne-500/10 border-champagne-500/40' : ''
-                }`}
+                className={`glass-card p-4 sm:p-6 group hover:bg-white/[0.07] hover:border-champagne-500/40 transition-all duration-300 ${tier.key === 'title_partner' ? 'bg-champagne-500/10 border-champagne-500/40' : ''
+                  }`}
               >
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-4xl">{tier.badge}</span>
@@ -148,7 +147,7 @@ export default function SponsorsPage() {
                 { icon: '⭐', t: 'On Every Nominee Page', d: 'Your brand appears on each nominee profile campaigning within that category.' },
                 { icon: '🗳️', t: 'On the Voting Screen', d: 'Voters see your brand at the moment they cast their vote.' },
                 { icon: '📲', t: 'In Social Posts & Campaigns', d: 'Nominee posters, story templates and campaign assets carry your identity.' },
-                { icon: '🎤', t: 'At the Winner Announcement', d: 'Your brand presents the trophy live on the grand night, 16 November 2026.' },
+                { icon: '🎤', t: 'At the Winner Announcement', d: 'Your brand presents the trophy live on the grand night, 13 December 2026.' },
               ].map((s, i) => (
                 <motion.div
                   key={s.t}

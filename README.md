@@ -380,7 +380,7 @@ assets and reach — with `COPY NOMINEE LINK`, `COPY VOTING LINK`, `DOWNLOAD QR`
 slug only changes when an admin explicitly edits that field, because it is
 printed on posters, QR codes and videos.
 
-### 7. Before the 10 October launch checklist
+### 7. Before the 10 November launch checklist
 
 - [x] Apply `backend/database/schema.sql` (auto on boot, or `npm run db:setup`)
 - [ ] Confirm a shared WhatsApp link previews with the nominee's **name, category and photo** (not the generic site title)

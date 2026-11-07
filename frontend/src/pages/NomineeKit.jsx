@@ -513,8 +513,8 @@ export default function NomineeKit() {
                       sponsors={categorySponsors}
                       qrUrl={qrDataUrlState || qrUrl(selectedNominee)}
                       event={{
-                        date: '16 NOVEMBER 2026',
-                        venue: 'SHILPAKALA VEDIKA, HYDERABAD',
+                        date: '13 DECEMBER 2026',
+                        venue: 'BANJARA BHAVAN, BANJARA HILLS, HYDERABAD',
                       }}
                     />
                   </div>
@@ -577,8 +577,8 @@ export default function NomineeKit() {
                       qrUrl={qrDataUrlState || qrUrl(selectedNominee)}
                       format="story"
                       event={{
-                        date: '16 NOVEMBER 2026',
-                        venue: 'SHILPAKALA VEDIKA, HYDERABAD',
+                        date: '13 DECEMBER 2026',
+                        venue: 'BANJARA BHAVAN, BANJARA HILLS, HYDERABAD',
                       }}
                     />
                   </div>
@@ -828,7 +828,7 @@ function VIDEO_SCRIPT(nominee) {
     `"One verified mobile number, one vote per category. It's 100% public and OTP-verified."`,
     ``,
     `CALL TO ACTION (12-18s, point at QR):`,
-    `"Vote for me before 15 November. Scan the QR, share this video, and rally your family."`,
+    `"Vote for me before 10 December. Scan the QR, share this video, and rally your family."`,
     ``,
     `END FRAME (static):`,
     `${nominee.full_name} · ${nominee.category_name || 'Official Nominee'}`,
